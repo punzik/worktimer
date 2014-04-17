@@ -20,6 +20,8 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 ;; THE SOFTWARE.
 
+;; -*- geiser-scheme-implementation: guile -*-
+
 (import (rnrs io ports (6))
         (srfi srfi-1)
         (srfi srfi-19)
@@ -28,11 +30,11 @@
 ;;; Use srfi-48 in other scheme implementation
 (use-modules (ice-9 format))
 
-(use-modules (ice-9 pretty-print))
-
 ;;; Record format:
 ;;; PROJECT/TASK/SUBTASK/ETC: [START_TIME] - [STOP_TIME] - DURATION
 
+;;; Hardcoded timesheet filename
+(define ts-file (string-append (getenv "HOME") "/.timesheet"))
 (define date-format "~Y-~m-~d ~H:~M:~S")
 
 ;;; Find substring separated by ch-start and ch-end.
@@ -93,11 +95,11 @@
                (path-split str 0 path-end))))
         (dates (substring/find str #\[ #\])))
     (if (null? dates) '()
-        (let ((date-start (string->date (car dates) "~Y-~m-~d ~H:~M:~S")))
+        (let ((date-start (string->date (car dates) date-format)))
           (let-values (((date-end duration)
                         (if (null? (cdr dates))
                             (values #f #f)
-                            (let* ((date-end (string->date (cadr dates) "~Y-~m-~d ~H:~M:~S"))
+                            (let* ((date-end (string->date (cadr dates) date-format))
                                    (duration (time-difference
                                               (date->time-utc date-end)
                                               (date->time-utc date-start))))
@@ -105,7 +107,7 @@
             (list path date-start date-end duration))))))
 
 ;;; Parse timesheet file and return list of tasks
-(define (parse-timesheet filename)
+(define (read-timesheet filename)
   (call-with-input-file filename
     (lambda (port)
       (let loop ((recs '()))
@@ -120,23 +122,31 @@
    (date->time-utc d1)
    (date->time-utc d2)))
 
+;;; Print timesheet item
+(define (print-task task . now)
+  (let ((path (car task))
+        (sdate (cadr task))
+        (edate (caddr task))
+        (duration (cadddr task))
+        (now (if (null? now) #f (car now))))
+    (let-values (((edate duration)
+                  (if edate
+                      (values edate duration)
+                      (if now
+                          (values now (date-difference now sdate))
+                          (values #f #f)))))
+      (format #t "~a: [~a]"
+              (path->string path)
+              (date->string sdate date-format))
+      (if edate
+          (format #t " - [~a] - ~a\n"
+                  (date->string edate date-format)
+                  (time-difference->h:m:s duration))
+          (newline)))))
+
 ;;; Print timesheet
 (define (print-timesheet timesheet)
-  (for-each
-   (lambda (task)
-     (let ((path (car task))
-           (sdate (cadr task))
-           (edate (caddr task))
-           (duration (cadddr task)))
-       (format #t "~a: [~a]"
-               (path->string path)
-               (date->string sdate date-format))
-       (if edate
-           (format #t " - [~a] - ~a\n"
-                   (date->string edate date-format)
-                   (time-difference->h:m:s duration))
-           (newline))))
-   timesheet))
+  (for-each print-task timesheet))
 
 ;;; Report is a tree of projects items.
 ;;; Root of the tree is super-project with name "ROOT":
@@ -151,10 +161,10 @@
   (define (tree-add-duration project-tree path duration)
     (let tree-walk ((tree project-tree)
                     (path path))
-      ;; Add task duration to tree leaf
+      ;; Add task duration
       (set-car! (cdr tree) (add-duration (cadr tree) duration))
 
-      ;; Search next leaf corresponding with path item
+      ;; Search next leaf corresponding to path item
       (if (null? path)
           project-tree
           (let ((item (find
@@ -190,6 +200,7 @@
                     projects)
                 (cdr timesheet))))))
 
+;;; Print report
 (define (print-report report)
   (let walk ((tree report)
              (level 0))
@@ -198,63 +209,92 @@
               (time-difference->h:m:s (cadr tree)))
       (for-each (lambda (l) (walk l (+ level 2))) (cddr tree)))))
 
-;; MAIN
+;;; Main function
+(define (main cmdl)
+  (let ((command (cdr cmdl))
+        (sheet (read-timesheet ts-file))
+        (now (current-date)))
+    (let* ((last (last-pair sheet))
+           (last (if (null? last) #f (car last))))
+      (if (null? command)
+          ;; Show report and running task
+          (if (and last (not (caddr last)))
+              (format #t "~a: ~a\n"
+                      (path->string (car last))
+                      (time-difference->h:m:s
+                       (date-difference now (cadr last))))
+              (format #t "NO TASKS\n"))
+          ;; Run command
+          (let ((param (cdr command))
+                (command (car command)))
+            (let ((new-sheet
+                   (cond
+                    ;; ----------------------- Start timer ------------------------- ;;
+                    ((string= command "start")
+                     (let ((path (if (null? param)
+                                     (if last (car last) #f)
+                                     (path-split (car param)))))
+                       (if (not path)
+                           (begin
+                             (format
+                              (current-error-port)
+                              "Not specified task path. No tasks in the sheet.\n")
+                             sheet)
+                           (begin
+                             (when (and last (not (caddr last)))
+                               ;; Stop last path if running
+                               (set-car! (cddr last) now)
+                               (set-car! (cdddr last) (date-difference now (cadr last))))
+                             ;; Add new task
+                             (let ((new-task (list path now #f #f)))
+                               (format #t "--- NEW TASK RUN\n")
+                               (print-task new-task)
+                               (append sheet (list new-task)))))))
+                    ;; ----------------------- Stop timer ------------------------- ;;
+                    ((string= command "stop")
+                     ;; Stop last path if running
+                     (if (and last (not (caddr last)))
+                         (begin
+                           (set-car! (cddr last) now)
+                           (set-car! (cdddr last) (date-difference now (cadr last)))
+                           (format #t "--- STOP TASK\n")
+                           (print-task last))
+                         (format
+                          (current-error-port)
+                          "Noting to stop, no runnig task\n"))
+                     sheet)
+                    ;; ----------------------- Show report ------------------------- ;;
+                    ((string= command "report")
+                     (format #t "--- REPORT\n")
+                     (print-report
+                      (make-report sheet))
+                     (let* ((last (last-pair sheet))
+                            (last (if (null? last) #f (car last))))
+                       (when last
+                         (format #t "\n--- ~a TASK\n"
+                                 (if (caddr last) "LAST STOPPED" "RUNNING"))
+                         (print-task last now)))
+                     #f)
+                    ;; ----------------------- Show usage ------------------------- ;;
+                    (else
+                     (with-output-to-port (current-error-port)
+                       (lambda ()
+                         (format #t "Usage: ~a [command]\n" (car cmdl))
+                         (format #t "Commands:\n")
+                         (format #t "    start [TASK]    Start new task. If no task, use last runned task\n")
+                         (format #t "    stop            Stop task\n")
+                         (format #t "    report          Show report\n")
+                         (format #t "                    Show running task and timer\n")
+                         (newline)))
+                     #f))))
+              
+              ;; ----------------------- Save new sheet ------------------------- ;;
+              (when (and
+                     (list? new-sheet)
+                     (not (null? new-sheet)))
+                (with-output-to-file ts-file
+                  (lambda ()
+                    (print-timesheet new-sheet))))))))))
 
-(define ts-file "/home/np/timesheet.txt")
-
-;; (let* ((cmdl (command-line))
-;;        (params (cdr cmdl)))
-;;   (if (null? params) 
-;;       ;; No command. Show last record and duration if running
-;;       (let ((last (timesheet-get-last ts-file)))
-;;         (if (null? last)
-;;             (format #t "Not any tasks\n")
-;;             (let ((path (car last))
-;;                   (start-date (cadr last))
-;;                   (stop-date (caddr last))
-;;                   (duration (cadddr last))
-;;                   (now (current-date)))
-;;               (format #t "~a: [~a] - [~a] - ~a\n"
-;;                       (path->string path)
-;;                       (date->string start-date "~Y-~m-~d ~H:~M:~S")
-;;                       (if (not stop-date) "NOW"
-;;                           (date->string stop-date "~Y-~m-~d ~H:~M:~S"))
-;;                       (time-difference->h:m:s
-;;                        (if duration duration
-;;                            (time-difference
-;;                             (date->time-utc (if stop-date stop-date now))
-;;                             (date->time-utc start-date))))))))
-
-;;       ;; Commands
-;;       (let ((command (car params))
-;;             (date (current-date)))
-;;         (cond
-
-;;          ((equal? command "start")
-;;           ;; ----------------------- Start timer ------------------------- ;;
-;;           (call-with-append-file
-;;            ts-file
-;;            (lambda (port)
-;;              (let* ((last (timesheet-get-last ts-file))
-;;                     (path
-;;                      (if (null? (cdr params))
-;;                          (if (null? last) '() (car last))
-;;                          (path-split (cadr params)))))
-;;                (if (null? path)
-;;                    (format #t "ERROR: Not specified the task path\n")
-;;                    (begin
-;;                      (when (and (not (null? last)) (not (caddr last)))
-;;                        (write-stop-and-duration port (cadr last) date))
-;;                      (format port "~a: [~a]" (path->string path) (date->string date "~Y-~m-~d ~H:~M:~S"))))))))
-
-;;          ((equal? command "stop")
-;;           ;; ----------------------- Stop timer ------------------------- ;;
-;;           (call-with-append-file
-;;            ts-file
-;;            (lambda (port)
-;;              (let ((last (timesheet-get-last ts-file)))
-;;                (if (or (null? last) (caddr last))
-;;                    (format #t "WARNING: Not running any tasks\n")
-;;                    (write-stop-and-duration port (cadr last) date))))))))))
-
-(print-report (make-report (parse-timesheet ts-file)))
+;;; JUST DO IT!
+(main (command-line))
