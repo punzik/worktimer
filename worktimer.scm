@@ -89,22 +89,27 @@
 ;;; Parse task string and return list:
 ;;; '((list of path elements) start-date stop-date duration)
 (define (parse-task-string str)
-  (let ((path
-         (let ((path-end (string-index str #\:)))
-           (if (not path-end) '()
-               (path-split str 0 path-end))))
-        (dates (substring/find str #\[ #\])))
-    (if (null? dates) '()
-        (let ((date-start (string->date (car dates) date-format)))
-          (let-values (((date-end duration)
-                        (if (null? (cdr dates))
-                            (values #f #f)
-                            (let* ((date-end (string->date (cadr dates) date-format))
-                                   (duration (time-difference
-                                              (date->time-utc date-end)
-                                              (date->time-utc date-start))))
-                              (values date-end duration)))))
-            (list path date-start date-end duration))))))
+  (let ((str (string-trim-both str)))
+    (if (or (zero? (string-length str))
+            (equal? (string-ref str 0) #\#))
+        #f
+        (let ((path
+               (let ((path-end (string-index str #\:)))
+                 (if (not path-end) #f
+                     (path-split str 0 path-end))))
+              (dates (substring/find str #\[ #\])))
+          (if (or (not path) (not dates))
+              #f
+              (let ((date-start (string->date (car dates) date-format)))
+                (let-values (((date-end duration)
+                              (if (null? (cdr dates))
+                                  (values #f #f)
+                                  (let* ((date-end (string->date (cadr dates) date-format))
+                                         (duration (time-difference
+                                                    (date->time-utc date-end)
+                                                    (date->time-utc date-start))))
+                                    (values date-end duration)))))
+                  (list path date-start date-end duration))))))))
 
 ;;; Parse timesheet file and return list of tasks
 (define (read-timesheet filename)
@@ -114,7 +119,8 @@
         (let ((line (get-line port)))
           (if (eof-object? line)
               (reverse recs)
-              (loop (cons (parse-task-string line) recs))))))))
+              (loop (let ((item (parse-task-string line)))
+                      (if item (cons item recs) recs)))))))))
 
 ;;; Return difference of two dates
 (define (date-difference d1 d2)
