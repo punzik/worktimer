@@ -1,0 +1,70 @@
+#+TITLE: README
+#+AUTHOR: Николай Пузанов
+#+EMAIL: punzik@gmail.com
+
+#+LANGUAGE: ru
+#+STARTUP: showall
+
+Программа написана на [[http://www.schemers.org/][Scheme]] (реализация - [[http://www.gnu.org/software/guile/][GNU Guile]]) и предназначена для учета
+рабочего времени. Применяется следующим образом:
+
+Начало работы над задачей:
+
+#+begin_sh
+$ worktimer.scm start [НАЗВАНИЕ_ЗАДАЧИ]
+#+end_sh
+
+Название задачи может состоять из нескольких частей, разделенных символом
+прямого слэша. Части названия - это элементы иерархии задачи, например, название
+проекта, название подпроекта, задача, подзадача и т.д. Программа учитывает
+иерархическую структуру задач и вычисляет время задач, как сумму времен
+подзадач.
+
+Пример:
+
+#+begin_sh
+$ worktimer.scm start uberproject/website/design
+#+end_sh
+
+Стартует отсчет времени на подзадачу "design" задачи "website" проекта
+"uberproject". Уровни вложенности не ограничены.  Если команде =start= не
+передать агрумент, то будет запущена последняя задача.
+
+Остановить отсчет времени можно командой =stop=:
+
+#+begin_src sh
+$ worktimer.scm stop
+#+end_src
+
+или запустив новую задачу:
+
+#+begin_src sh
+$ worktimer.scm start uberproject/website/programming
+#+end_src
+
+По команде =report= выводится отчет по всем проектам и задачам:
+
+#+begin_src sh
+$ worktimer.scm report
+--- REPORT
+Overall: 00:03:45
+  uberproject: 00:03:45
+    website: 00:03:45
+      programming: 00:02:34
+      design: 00:01:11
+
+--- LAST STOPPED TASK
+uberproject/website/programming: [2014-04-18 09:47:04] - [2014-04-18 09:49:38] - 00:02:34
+#+end_src
+
+Как видно, общее время работы над проектом составило 3 минуты и 45 секунд, из
+которых на дизайн сайта ушло 1 минута 11 секунд, а на программирование 2 минуты
+34 секунды.
+
+При запуске программы без аргументов выводится имя текущей задачи и текущий
+таймер:
+
+#+begin_src sh
+$ worktimer.scm
+uberproject/website/programming: 00:02:51
+#+end_src

@@ -113,14 +113,16 @@
 
 ;;; Parse timesheet file and return list of tasks
 (define (read-timesheet filename)
-  (call-with-input-file filename
-    (lambda (port)
-      (let loop ((recs '()))
-        (let ((line (get-line port)))
-          (if (eof-object? line)
-              (reverse recs)
-              (loop (let ((item (parse-task-string line)))
-                      (if item (cons item recs) recs)))))))))
+  (if (file-exists? filename)
+      (call-with-input-file filename
+        (lambda (port)
+          (let loop ((recs '()))
+            (let ((line (get-line port)))
+              (if (eof-object? line)
+                  (reverse recs)
+                  (loop (let ((item (parse-task-string line)))
+                          (if item (cons item recs) recs))))))))
+      '()))
 
 ;;; Return difference of two dates
 (define (date-difference d1 d2)
