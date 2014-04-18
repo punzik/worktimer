@@ -27,6 +27,9 @@
         (srfi srfi-19)
         (srfi srfi-11))
 
+;;; Set locale according to environment settings
+(setlocale LC_ALL "")
+
 ;;; Use srfi-48 in other scheme implementation
 (use-modules (ice-9 format))
 
