@@ -10,9 +10,9 @@
 
 Начало работы над задачей:
 
-#+begin_sh
+#+begin_src sh
 $ worktimer.scm start [НАЗВАНИЕ_ЗАДАЧИ]
-#+end_sh
+#+end_src
 
 Название задачи может состоять из нескольких частей, разделенных символом
 прямого слэша. Части названия - это элементы иерархии задачи, например, название
@@ -22,9 +22,9 @@ $ worktimer.scm start [НАЗВАНИЕ_ЗАДАЧИ]
 
 Пример:
 
-#+begin_sh
+#+begin_src sh
 $ worktimer.scm start uberproject/website/design
-#+end_sh
+#+end_src
 
 Стартует отсчет времени на подзадачу "design" задачи "website" проекта
 "uberproject". Уровни вложенности не ограничены.  Если команде =start= не
