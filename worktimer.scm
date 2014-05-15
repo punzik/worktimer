@@ -211,6 +211,70 @@
                     projects)
                 (cdr timesheet))))))
 
+
+;;; Date is today?
+(define (today? date)
+  (let ((now (current-date)))
+    (and
+     (= (date-day date) (date-day now))
+     (= (date-month date) (date-month now))
+     (= (date-year date) (date-year now)))))
+
+;;; Date is in current month?
+(define (current-month? date)
+  (let ((now (current-date)))
+    (and
+     (= (date-month date) (date-month now))
+     (= (date-year date) (date-year now)))))
+
+;;; Check date for occurence between d-past and d-future
+(define (date-in-range? d d-past d-future)
+  (let ((dt (date->time-utc d))
+        (dpt (date->time-utc d-past))
+        (dft (date->time-utc d-future)))
+    (and (time>=? dt dpt)
+         (time<=? dt dft))))
+
+;;; Truncate hours, minutes and seconds
+(define (date-round-day date)
+  (let ((day (date-day date))
+        (month (date-month date))
+        (year (date-year date))
+        (zf (date-zone-offset date)))
+    (make-date 0 0 0 0 day month year zf)))
+
+;;; Returns today date with time 00:00
+;; (define (today)
+;;   (date-round-day (current-date)))
+
+;;; Returns tomorrow date with time 00:00
+;; (define (tomorrow)
+;;   (date-round-day
+;;    (julian-day->date
+;;     (+ (date->julian-day (current-date)) 1))))
+
+;;; Returns remainder plus fractional part of
+;;; truncating x.
+;;; For example: (remainder-and-rest 5.1 3) -> 2.1
+(define (remainder-and-rest x y)
+  (let ((xi (truncate x)))
+    (+ (- x xi)
+       (remainder xi y))))
+
+;;; Returns monday of current week
+(define (monday)
+  (date-round-day
+   (julian-day->date
+    (let ((jd (date->julian-day (current-date))))
+      (- jd (remainder-and-rest jd 7))))))
+
+;;; Returns monday of next week
+(define (next-monday)
+  (date-round-day
+   (julian-day->date
+    (let ((jd (date->julian-day (current-date))))
+      (+ jd (- 7 (remainder-and-rest jd 7)))))))
+
 ;;; Print report
 (define (print-report report)
   (let walk ((tree report)
@@ -276,9 +340,38 @@
                      sheet)
                     ;; ----------------------- Show report ------------------------- ;;
                     ((string= command "report")
-                     (format #t "--- REPORT\n")
-                     (print-report
-                      (make-report sheet))
+                     (format #t "--- REPORT")
+                     (let ((sheet
+                            (if (null? param) sheet
+                                (let ((interval (car param)))
+                                  (filter (cond
+                                           ((string-ci= interval "today")
+                                            (format #t " FOR TODAY")
+                                            (lambda (x) (today? (cadr x))))
+                                           ((string-ci= interval "month")
+                                            (format #t " FOR CURRENT MONTH")
+                                            (lambda (x) (current-month? (cadr x))))
+                                           ((string-ci= interval "week")
+                                            (format #t " FOR CURRENT WEEK")
+                                            (lambda (x) (date-in-range? (cadr x)
+                                                                       (monday)
+                                                                       (next-monday))))
+                                           (else
+                                            (format #t " FOR PROJECT ~a" interval)
+                                            (let ((rep-path (path-split interval)))
+                                              (lambda (x)
+                                                (let loop ((path (car x))
+                                                           (rep-path rep-path))
+                                                  (if (or
+                                                       (null? path)
+                                                       (null? rep-path)) #t
+                                                      (if (string-ci= (car path) (car rep-path))
+                                                          (loop (cdr path) (cdr rep-path))
+                                                          #f)))))))
+                                          sheet)))))
+                       (newline)
+                       (print-report
+                        (make-report sheet)))
                      (let* ((last (last-pair sheet))
                             (last (if (null? last) #f (car last))))
                        (when last
@@ -295,6 +388,10 @@
                          (format #t "    start [TASK]    Start new task. If no task, use last runned task\n")
                          (format #t "    stop            Stop task\n")
                          (format #t "    report          Show report\n")
+                         (format #t "    report today    Show report for today\n")
+                         (format #t "    report week     Show report for current week\n")
+                         (format #t "    report month    Show report for current month\n")
+                         (format #t "    report PATH     Show report for project\n")
                          (format #t "                    Show running task and timer\n")
                          (newline)))
                      #f))))
@@ -309,9 +406,3 @@
 
 ;;; JUST DO IT!
 (main (command-line))
-
-
-;;; TODO:
-;;;     Отчет по проектам (затраченное время на проект по дням)
-;;;     Отчет по общему времени работы по дням
-;;;     Отчет за один день/неделю/месяц
