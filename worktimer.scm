@@ -38,7 +38,8 @@
 
 ;;; Hardcoded timesheet filename
 (define ts-file (string-append (getenv "HOME") "/.timesheet"))
-(define date-format "~Y-~m-~d ~H:~M:~S")
+(define date-format-time "~Y-~m-~d ~H:~M:~S")
+(define date-format "~Y-~m-~d")
 
 ;;; Find substring separated by ch-start and ch-end.
 ;;; (substring/find str ch-start ch-end [begin end]) 
@@ -103,11 +104,11 @@
               (dates (substring/find str #\[ #\])))
           (if (or (not path) (not dates))
               #f
-              (let ((date-start (string->date (car dates) date-format)))
+              (let ((date-start (string->date (car dates) date-format-time)))
                 (let-values (((date-end duration)
                               (if (null? (cdr dates))
                                   (values #f #f)
-                                  (let* ((date-end (string->date (cadr dates) date-format))
+                                  (let* ((date-end (string->date (cadr dates) date-format-time))
                                          (duration (time-difference
                                                     (date->time-utc date-end)
                                                     (date->time-utc date-start))))
@@ -148,10 +149,10 @@
                           (values #f #f)))))
       (format #t "~a: [~a]"
               (path->string path)
-              (date->string sdate date-format))
+              (date->string sdate date-format-time))
       (if edate
           (format #t " - [~a] - ~a\n"
-                  (date->string edate date-format)
+                  (date->string edate date-format-time)
                   (time-difference->h:m:s duration))
           (newline)))))
 
@@ -212,20 +213,17 @@
                 (cdr timesheet))))))
 
 
-;;; Date is today?
-(define (today? date)
-  (let ((now (current-date)))
-    (and
-     (= (date-day date) (date-day now))
-     (= (date-month date) (date-month now))
-     (= (date-year date) (date-year now)))))
+;;; Dates is in same day?
+(define (same-month? d1 d2)
+  (and
+   (= (date-month d1) (date-month d2))
+   (= (date-year d1) (date-year d2))))
 
-;;; Date is in current month?
-(define (current-month? date)
-  (let ((now (current-date)))
-    (and
-     (= (date-month date) (date-month now))
-     (= (date-year date) (date-year now)))))
+;;; Dates is in same month?
+(define (same-day? d1 d2)
+  (and
+   (same-month? d1 d2)
+   (= (date-day d1) (date-day d2))))
 
 ;;; Check date for occurence between d-past and d-future
 (define (date-in-range? d d-past d-future)
@@ -243,16 +241,6 @@
         (zf (date-zone-offset date)))
     (make-date 0 0 0 0 day month year zf)))
 
-;;; Returns today date with time 00:00
-;; (define (today)
-;;   (date-round-day (current-date)))
-
-;;; Returns tomorrow date with time 00:00
-;; (define (tomorrow)
-;;   (date-round-day
-;;    (julian-day->date
-;;     (+ (date->julian-day (current-date)) 1))))
-
 ;;; Returns remainder plus fractional part of
 ;;; truncating x.
 ;;; For example: (remainder-and-rest 5.1 3) -> 2.1
@@ -262,17 +250,17 @@
        (remainder xi y))))
 
 ;;; Returns monday of current week
-(define (monday)
+(define (monday-of-week date)
   (date-round-day
    (julian-day->date
-    (let ((jd (date->julian-day (current-date))))
+    (let ((jd (date->julian-day date)))
       (- jd (remainder-and-rest jd 7))))))
 
 ;;; Returns monday of next week
-(define (next-monday)
+(define (monday-of-next-week date)
   (date-round-day
    (julian-day->date
-    (let ((jd (date->julian-day (current-date))))
+    (let ((jd (date->julian-day date)))
       (+ jd (- 7 (remainder-and-rest jd 7)))))))
 
 ;;; Print report
@@ -343,21 +331,33 @@
                      (format #t "--- REPORT")
                      (let ((sheet
                             (if (null? param) sheet
-                                (let ((interval (car param)))
+                                (let* ((interval (car param))
+                                       (report-date (catch #t
+                                                      (lambda () (string->date (cadr param) date-format))
+                                                      (lambda (key . args) (current-date)))))
                                   (filter (cond
-                                           ((string-ci= interval "today")
-                                            (format #t " FOR TODAY")
-                                            (lambda (x) (today? (cadr x))))
+                                           ;; Filter records by day
+                                           ((string-ci= interval "day")
+                                            (format #t ". DAY ~a" (date->string report-date "~Y-~m-~d"))
+                                            (lambda (x) (same-day? report-date (cadr x))))
+
+                                           ;; Filter records by month
                                            ((string-ci= interval "month")
-                                            (format #t " FOR CURRENT MONTH")
-                                            (lambda (x) (current-month? (cadr x))))
+                                            (format #t ". MONTH ~a" (date->string report-date "~Y-~m"))
+                                            (lambda (x) (same-month? report-date (cadr x))))
+
+                                           ;; Filter records by week
                                            ((string-ci= interval "week")
-                                            (format #t " FOR CURRENT WEEK")
-                                            (lambda (x) (date-in-range? (cadr x)
-                                                                       (monday)
-                                                                       (next-monday))))
+                                            (let ((beg (monday-of-week report-date))
+                                                  (end (monday-of-next-week report-date)))
+                                              (format #t ". WEEK [~a - ~a)"
+                                                      (date->string beg date-format)
+                                                      (date->string end date-format))
+                                              (lambda (x) (date-in-range? (cadr x) beg end))))
+
+                                           ;; Filter records by path
                                            (else
-                                            (format #t " FOR PROJECT ~a" interval)
+                                            (format #t ". PROJECT ~a" interval)
                                             (let ((rep-path (path-split interval)))
                                               (lambda (x)
                                                 (let loop ((path (car x))
@@ -385,14 +385,14 @@
                        (lambda ()
                          (format #t "Usage: ~a [command]\n" (car cmdl))
                          (format #t "Commands:\n")
-                         (format #t "    start [TASK]    Start new task. If no task, use last runned task\n")
-                         (format #t "    stop            Stop task\n")
-                         (format #t "    report          Show report\n")
-                         (format #t "    report today    Show report for today\n")
-                         (format #t "    report week     Show report for current week\n")
-                         (format #t "    report month    Show report for current month\n")
-                         (format #t "    report PATH     Show report for project\n")
-                         (format #t "                    Show running task and timer\n")
+                         (format #t "    start [TASK]           Start new task. If no task, use last runned task\n")
+                         (format #t "    stop                   Stop task\n")
+                         (format #t "    report                 Show report\n")
+                         (format #t "    report day [DATE]      Show report for today or DATE\n")
+                         (format #t "    report week [DATE]     Show report for current week or week of DATE\n")
+                         (format #t "    report month [DATE]    Show report for current month or month of DATE\n")
+                         (format #t "    report PATH            Show report for project\n")
+                         (format #t "                           Show running task and timer\n")
                          (newline)))
                      #f))))
               
