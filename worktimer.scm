@@ -270,137 +270,162 @@
               (time-difference->h:m:s (cadr tree)))
       (for-each (lambda (l) (walk l (+ level 2))) (cddr tree)))))
 
-;;; Main function
+;;; Returns last record of the sheet or #f if sheet is empty.
+(define (last-task sheet)
+  (let ((last (last-pair sheet)))
+    (if (null? last) #f (car last))))
+
+;;; Stop task. Returns #t if stopped, #f if no running task.
+(define (stop-task task)
+  (if (not (caddr task))
+      (let ((now (current-date)))
+        (set-car! (cddr task) now)
+        (set-car! (cdddr task) (date-difference now (cadr task)))
+        #t)
+      #f))
+
+;;; Start new task and append its to the sheet.
+;;; Returns new sheet and new task.
+(define (new-task sheet path)
+  (let ((task (list path (current-date) #f #f)))
+    (values (append sheet (list task)) task)))
+
+;;; ================================ COMMANDS ==================================
+
+;;; Start new task. Returns new sheet with started task or #f if nothing started.
+(define (cmd-start-task sheet . params)
+  (let* ((last (last-task sheet))
+         (path (if (null? params)
+                   (if last (car last) #f)
+                   (path-split (car params))))
+         (now (current-date)))
+    (if (not path)
+        (begin (format
+                (current-error-port)
+                "Not specified task path. No tasks in the sheet.\n")
+               #f)
+        (begin
+          (stop-task last)
+          (let-values (((sheet task) (new-task sheet path)))
+            (format #t "--- NEW TASK RUN\n")
+            (print-task task)
+            sheet)))))
+
+;;; Stop a running task. Returns new sheet or #f if nothing to stop.
+(define (cmd-stop-task sheet . params)
+  (let ((last (last-task sheet)))
+    (if (stop-task last)
+        (begin
+          (format #t "--- STOP TASK\n")
+          (print-task last)
+          sheet)
+        (begin
+          (format (current-error-port) "Nothing to stop\n")
+          #f))))
+
+(define (cmd-report sheet . params)
+  (format #t "--- REPORT")
+  (let ((sheet
+         (if (null? params) sheet
+             (let* ((interval (car params))
+                    (report-date (catch #t
+                                   (lambda () (string->date (cadr params) date-format))
+                                   (lambda (key . args) (current-date)))))
+               (filter (cond
+                        ;; Filter records by day
+                        ((string-ci= interval "day")
+                         (format #t ". DAY ~a" (date->string report-date "~Y-~m-~d"))
+                         (lambda (x) (same-day? report-date (cadr x))))
+
+                        ;; Filter records by month
+                        ((string-ci= interval "month")
+                         (format #t ". MONTH ~a" (date->string report-date "~Y-~m"))
+                         (lambda (x) (same-month? report-date (cadr x))))
+
+                        ;; Filter records by week
+                        ((string-ci= interval "week")
+                         (let ((beg (monday-of-week report-date))
+                               (end (monday-of-next-week report-date)))
+                           (format #t ". WEEK [~a - ~a)"
+                                   (date->string beg date-format)
+                                   (date->string end date-format))
+                           (lambda (x) (date-in-range? (cadr x) beg end))))
+
+                        ;; Filter records by path
+                        (else
+                         (format #t ". PROJECT ~a" interval)
+                         (let ((rep-path (path-split interval)))
+                           (lambda (x)
+                             (let loop ((path (car x))
+                                        (rep-path rep-path))
+                               (if (or
+                                    (null? path)
+                                    (null? rep-path)) #t
+                                    (if (string-ci= (car path) (car rep-path))
+                                        (loop (cdr path) (cdr rep-path))
+                                        #f)))))))
+                       sheet)))))
+    (newline)
+    (print-report
+     (make-report sheet)))
+  (let ((last (last-task sheet)))
+    (when last
+      (format #t "\n--- ~a TASK\n"
+              (if (caddr last) "LAST STOPPED" "RUNNING"))
+      (print-task last (current-date))))
+  #f)
+
+;;; ================================ MAIN FUNCTION ==================================
 (define (main cmdl)
   (let ((command (cdr cmdl))
-        (sheet (read-timesheet ts-file))
-        (now (current-date)))
-    (let* ((last (last-pair sheet))
-           (last (if (null? last) #f (car last))))
-      (if (null? command)
-          ;; Show report and running task
+        (sheet (read-timesheet ts-file)))
+    (if (null? command)
+
+        ;; Show running task
+        (let ((last (last-task sheet)))
           (if (and last (not (caddr last)))
               (format #t "~a: ~a\n"
                       (path->string (car last))
                       (time-difference->h:m:s
-                       (date-difference now (cadr last))))
-              (format #t "NO TASKS\n"))
-          ;; Run command
-          (let ((param (cdr command))
-                (command (car command)))
-            (let ((new-sheet
-                   (cond
-                    ;; ----------------------- Start timer ------------------------- ;;
-                    ((string= command "start")
-                     (let ((path (if (null? param)
-                                     (if last (car last) #f)
-                                     (path-split (car param)))))
-                       (if (not path)
-                           (begin
-                             (format
-                              (current-error-port)
-                              "Not specified task path. No tasks in the sheet.\n")
-                             sheet)
-                           (begin
-                             (when (and last (not (caddr last)))
-                               ;; Stop last path if running
-                               (set-car! (cddr last) now)
-                               (set-car! (cdddr last) (date-difference now (cadr last))))
-                             ;; Add new task
-                             (let ((new-task (list path now #f #f)))
-                               (format #t "--- NEW TASK RUN\n")
-                               (print-task new-task)
-                               (append sheet (list new-task)))))))
-                    ;; ----------------------- Stop timer ------------------------- ;;
-                    ((string= command "stop")
-                     ;; Stop last path if running
-                     (if (and last (not (caddr last)))
-                         (begin
-                           (set-car! (cddr last) now)
-                           (set-car! (cdddr last) (date-difference now (cadr last)))
-                           (format #t "--- STOP TASK\n")
-                           (print-task last))
-                         (format
-                          (current-error-port)
-                          "Noting to stop, no runnig task\n"))
-                     sheet)
-                    ;; ----------------------- Show report ------------------------- ;;
-                    ((string= command "report")
-                     (format #t "--- REPORT")
-                     (let ((sheet
-                            (if (null? param) sheet
-                                (let* ((interval (car param))
-                                       (report-date (catch #t
-                                                      (lambda () (string->date (cadr param) date-format))
-                                                      (lambda (key . args) (current-date)))))
-                                  (filter (cond
-                                           ;; Filter records by day
-                                           ((string-ci= interval "day")
-                                            (format #t ". DAY ~a" (date->string report-date "~Y-~m-~d"))
-                                            (lambda (x) (same-day? report-date (cadr x))))
+                       (date-difference (current-date) (cadr last))))
+              (format #t "NO TASKS\n")))
 
-                                           ;; Filter records by month
-                                           ((string-ci= interval "month")
-                                            (format #t ". MONTH ~a" (date->string report-date "~Y-~m"))
-                                            (lambda (x) (same-month? report-date (cadr x))))
-
-                                           ;; Filter records by week
-                                           ((string-ci= interval "week")
-                                            (let ((beg (monday-of-week report-date))
-                                                  (end (monday-of-next-week report-date)))
-                                              (format #t ". WEEK [~a - ~a)"
-                                                      (date->string beg date-format)
-                                                      (date->string end date-format))
-                                              (lambda (x) (date-in-range? (cadr x) beg end))))
-
-                                           ;; Filter records by path
-                                           (else
-                                            (format #t ". PROJECT ~a" interval)
-                                            (let ((rep-path (path-split interval)))
-                                              (lambda (x)
-                                                (let loop ((path (car x))
-                                                           (rep-path rep-path))
-                                                  (if (or
-                                                       (null? path)
-                                                       (null? rep-path)) #t
-                                                      (if (string-ci= (car path) (car rep-path))
-                                                          (loop (cdr path) (cdr rep-path))
-                                                          #f)))))))
-                                          sheet)))))
-                       (newline)
-                       (print-report
-                        (make-report sheet)))
-                     (let* ((last (last-pair sheet))
-                            (last (if (null? last) #f (car last))))
-                       (when last
-                         (format #t "\n--- ~a TASK\n"
-                                 (if (caddr last) "LAST STOPPED" "RUNNING"))
-                         (print-task last now)))
-                     #f)
-                    ;; ----------------------- Show usage ------------------------- ;;
-                    (else
-                     (with-output-to-port (current-error-port)
-                       (lambda ()
-                         (format #t "Usage: ~a [command]\n" (car cmdl))
-                         (format #t "Commands:\n")
-                         (format #t "    start [TASK]           Start new task. If no task, use last runned task\n")
-                         (format #t "    stop                   Stop task\n")
-                         (format #t "    report                 Show report\n")
-                         (format #t "    report day [DATE]      Show report for today or DATE\n")
-                         (format #t "    report week [DATE]     Show report for current week or week of DATE\n")
-                         (format #t "    report month [DATE]    Show report for current month or month of DATE\n")
-                         (format #t "    report PATH            Show report for project\n")
-                         (format #t "                           Show running task and timer\n")
-                         (newline)))
-                     #f))))
-              
-              ;; ----------------------- Save new sheet ------------------------- ;;
-              (when (and
-                     (list? new-sheet)
-                     (not (null? new-sheet)))
-                (with-output-to-file ts-file
-                  (lambda ()
-                    (print-timesheet new-sheet))))))))))
+        ;; Else run command
+        (let ((param (cdr command))
+              (command (car command)))
+          (let ((new-sheet
+                 (apply (cond
+                         ((string= command "start") cmd-start-task)
+                         ((string= command "stop") cmd-stop-task)
+                         ((string= command "report") cmd-report)
+                         ((string= command "refresh") (lambda (s . p) s))
+                         
+                         ;; ----------------------- Show usage ------------------------- ;;
+                         (else
+                          (with-output-to-port (current-error-port)
+                            (lambda ()
+                              (format #t "Usage: ~a [command]\n" (car cmdl))
+                              (format #t "Commands:\n")
+                              (format #t "    start [TASK]           Start new task. If no task, use last runned task\n")
+                              (format #t "    stop                   Stop task\n")
+                              (format #t "    report                 Show report\n")
+                              (format #t "    report day [DATE]      Show report for today or DATE\n")
+                              (format #t "    report week [DATE]     Show report for current week or week of DATE\n")
+                              (format #t "    report month [DATE]    Show report for current month or month of DATE\n")
+                              (format #t "    report PATH            Show report for project\n")
+                              (format #t "    refresh                Refresh worksheet file after manual edit\n")
+                              (format #t "                           Show running task and timer\n")
+                              (newline)))
+                          (lambda (s . p) #f)))
+                        (cons sheet param))))
+            
+            ;; ----------------------- Save new sheet ------------------------- ;;
+            (when (and
+                   (list? new-sheet)
+                   (not (null? new-sheet)))
+              (with-output-to-file ts-file
+                (lambda ()
+                  (print-timesheet new-sheet)))))))))
 
 ;;; JUST DO IT!
 (main (command-line))
