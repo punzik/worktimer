@@ -227,19 +227,17 @@
 
 ;;; Check date for occurence between d-past and d-future
 (define (date-in-range? d d-past d-future)
-  (let ((dt (date->time-utc d))
-        (dpt (date->time-utc d-past))
-        (dft (date->time-utc d-future)))
-    (and (time>=? dt dpt)
-         (time<=? dt dft))))
+  (let ((dt (date->time-utc d)))
+    (and (time>=? dt (date->time-utc d-past))
+         (time<=? dt (date->time-utc d-future)))))
 
 ;;; Truncate hours, minutes and seconds
 (define (date-round-day date)
-  (let ((day (date-day date))
-        (month (date-month date))
-        (year (date-year date))
-        (zf (date-zone-offset date)))
-    (make-date 0 0 0 0 day month year zf)))
+  (make-date 0 0 0 0
+             (date-day date)
+             (date-month date)
+             (date-year date)
+             (date-zone-offset date)))
 
 ;;; Returns remainder plus fractional part of
 ;;; truncating x.
