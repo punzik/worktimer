@@ -323,6 +323,7 @@
           (format (current-error-port) "Nothing to stop\n")
           #f))))
 
+;;; Print report
 (define (cmd-report sheet . params)
   (format #t "--- REPORT")
   (let ((sheet
