@@ -103,7 +103,7 @@
                  (if (not path-end) #f
                      (path-split str 0 path-end))))
               (dates (substring/find str #\[ #\])))
-          (if (or (not path) (not dates))
+          (if (or (not path) (not dates) (null? dates))
               #f
               (let ((date-start (string->date (car dates) date-time-format)))
                 (let-values (((date-end duration)
@@ -133,6 +133,63 @@
 ;;; Parse timesheet file and return list of tasks
 (define (read-timesheet filename)
   (read-and-parse-file filename parse-task-string))
+
+;;; Compare paths
+(define (path<? a b)
+  (let loop ((a a) (b b))
+    (if (and (null? a) (null? b)) #f
+        (if (null? a) #t
+            (if (null? b) #f
+                (if (string=? (car a) (car b))
+                    (loop (cdr a) (cdr b))
+                    (string< (car a) (car b))))))))
+
+;;; Compare deadlines by path
+(define (deadline<? a b)
+  (path<? (car a) (car b)))
+
+;;; Read timesheet and deadlines
+(define (read-timesheet1 filename)
+  (if (file-exists? filename)
+      (call-with-input-file filename
+        (lambda (port)
+          (let loop ((record-type 'unknown)
+                     (timerecords '())
+                     (deadlines '()))
+            (let ((line (get-line port)))
+              (if (eof-object? line)
+                  (values (reverse timerecords)
+                          (sort deadlines deadline<?))
+                  (let ((line (string-trim-both line)))
+                    (cond
+                     ((or (string-null? line)
+                          (eq? (string-ref line 0) #\#))
+                      (loop record-type timerecords deadlines))
+                     ((string-ci=? line "--- DEADLINES")
+                      (loop 'deadline timerecords deadlines))
+                     ((string-ci=? line "--- TIMESHEET")
+                      (loop 'timerecord timerecords deadlines))
+                     (else
+                      (cond
+                       ((eq? record-type 'timerecord)
+                        (loop record-type
+                              (let ((item (parse-task-string line)))
+                                (if item
+                                    (cons item timerecords)
+                                    (begin
+                                      (format #t "Warning: Line '~a' is not a timerecord. Skip.\n" line)
+                                      timerecords)))
+                              deadlines))
+                       ((eq? record-type 'deadline)
+                        (loop record-type
+                              timerecords
+                              (let ((item (parse-deadline-string line)))
+                                (if item
+                                    (cons item deadlines)
+                                    (begin
+                                      (format #t "Warning: Line '~a' is not a deadline. Skip.\n" line)
+                                      deadlines))))))))))))))
+      '()))
 
 ;;; Return difference of two dates
 (define (date-difference d1 d2)
@@ -578,63 +635,64 @@
 
 ;;; ================================ MAIN FUNCTION ==================================
 (define (main cmdl)
-  (let ((command (cdr cmdl))
-        (sheet (read-timesheet ts-file)))
-    (if (null? command)
+  (let ((command (cdr cmdl)))
+    (let-values (((sheet deadlines) (read-timesheet1 ts-file)))
+      (if (null? command)
 
-        ;; Show running task
-        (let ((last (last-task sheet)))
-          (if (and last (not (caddr last)))
-              (format #t "~a: ~a\n"
-                      (path->string (car last))
-                      (time->string
-                       (date-difference (current-date) (cadr last))))
-              (format #t "NO TASKS\n")))
+          ;; Show running task
+          (let ((last (last-task sheet)))
+            (if (and last (not (caddr last)))
+                (format #t "~a: ~a\n"
+                        (path->string (car last))
+                        (time->string
+                         (date-difference (current-date) (cadr last))))
+                (format #t "NO TASKS\n")))
 
-        ;; Else run command
-        (let ((param (cdr command))
-              (command (car command)))
-          (let ((new-sheet
-                 (apply (cond
-                         ((string= command "start") cmd-start-task)
-                         ((string= command "stop") cmd-stop-task)
-                         ((string= command "report") cmd-report)
-                         ((string= command "refresh") (lambda (s . p) s))
-                         ((string= command "tasklist") cmd-tasklist)
-                         ((string= command "deadline") cmd-deadline)
-                         
-                         ;; ----------------------- Show usage ------------------------- ;;
-                         (else
-                          (with-output-to-port (current-error-port)
-                            (lambda ()
-                              (format #t "Usage: ~a [command]\n" (car cmdl))
-                              (format #t "Commands:\n")
-                              (format #t "    start [TASK]                    Start new task. If no task, use last runned task\n")
-                              (format #t "    stop                            Stop task\n")
-                              (format #t "    report                          Show report\n")
-                              (format #t "    report day [DATE]               Show report for today or DATE\n")
-                              (format #t "    report week [DATE]              Show report for current week or week of DATE\n")
-                              (format #t "    report month [DATE]             Show report for current month or month of DATE\n")
-                              (format #t "    report TASK                     Show report for project\n")
-                              (format #t "    deadline set [TASK] DATE|+TIME  Add deadline for project (or for last task)\n")
-                              (format #t "    deadline clear [TASK]           Remove deadline for project (or for last task)\n")
-                              (format #t "    deadline [TASK]                 Show deadline for project\n")
-                              (format #t "    deadline all                    Show all deadlines\n")
-                              (format #t "    refresh                         Refresh worksheet file after manual edit\n")
-                              (format #t "    (no command)                    Show running task and timer\n\n")
-                              (format #t "DATE format: YYYY-mm-dd\n")
-                              (format #t "TIME format: HH-MM-SS\n")
-                              (newline)))
-                          (lambda (s . p) #f)))
-                        (cons sheet param))))
-            
-            ;; ----------------------- Save new sheet ------------------------- ;;
-            (when (and
-                   (list? new-sheet)
-                   (not (null? new-sheet)))
-              (with-output-to-file ts-file
-                (lambda ()
-                  (print-timesheet new-sheet)))))))))
+          ;; Else run command
+          (let ((param (cdr command))
+                (command (car command)))
+            (let ((new-sheet
+                   (apply (cond
+                           ((string= command "start") cmd-start-task)
+                           ((string= command "stop") cmd-stop-task)
+                           ((string= command "report") cmd-report)
+                           ((string= command "refresh") (lambda (s . p) s))
+                           ((string= command "tasklist") cmd-tasklist)
+                           ((string= command "deadline") cmd-deadline)
+                           
+                           ;; ----------------------- Show usage ------------------------- ;;
+                           (else
+                            (with-output-to-port (current-error-port)
+                              (lambda ()
+                                (format #t "Usage: ~a [command]\n" (car cmdl))
+                                (format #t "Commands:\n")
+                                (format #t "    start [TASK]                    Start new task. If no task, use last runned task\n")
+                                (format #t "    stop                            Stop task\n")
+                                (format #t "    report                          Show report\n")
+                                (format #t "    report day [DATE]               Show report for today or DATE\n")
+                                (format #t "    report week [DATE]              Show report for current week or week of DATE\n")
+                                (format #t "    report month [DATE]             Show report for current month or month of DATE\n")
+                                (format #t "    report TASK                     Show report for project\n")
+                                (format #t "    deadline set [TASK] DATE|+TIME  Add deadline for project (or for last task)\n")
+                                (format #t "    deadline clear [TASK]           Remove deadline for project (or for last task)\n")
+                                (format #t "    deadline [TASK]                 Show deadline for project\n")
+                                (format #t "    deadline all                    Show all deadlines\n")
+                                (format #t "    refresh                         Refresh worksheet file after manual edit\n")
+                                (format #t "    (no command)                    Show running task and timer\n\n")
+                                (format #t "DATE format: YYYY-mm-dd\n")
+                                (format #t "TIME format: HH-MM-SS\n")
+                                (newline)))
+                            (lambda (s . p) #f)))
+                          (cons sheet param))))
+              
+              ;; ----------------------- Save new sheet ------------------------- ;;
+              (when (and
+                     (list? new-sheet)
+                     (not (null? new-sheet)))
+                (with-output-to-file ts-file
+                  (lambda ()
+                    (print-timesheet new-sheet))))))))))
 
 ;;; JUST DO IT!
-(main (command-line))
+;(main (command-line))
+
