@@ -1,0 +1,72 @@
+_timer()
+{
+    local uncomplete=${COMP_WORDS[COMP_CWORD]}
+    
+    case "$COMP_CWORD" in
+        1)
+            # Commands
+            COMPREPLY=( $(compgen -W "start stop report deadline refresh help" -- $uncomplete) )
+            ;;
+        2)
+            # Command argument 1
+            case "${COMP_WORDS[1]}" in
+                start)
+                    local tasklist=$(timer tasklist)
+                    COMPREPLY=( $(compgen -W "$tasklist" -- $uncomplete))
+                    ;;
+                report)
+                    local tasklist=$(timer tasklist)
+                    COMPREPLY=( $(compgen -W "day week month $tasklist" -- $uncomplete))
+                    ;;
+                deadline)
+                    local deadlist=$(timer deadlist)
+                    COMPREPLY=( $(compgen -W "set clear all $deadlist" -- $uncomplete))
+                    ;;
+            esac
+            ;;
+        3)
+            # Command argument 2
+            case "${COMP_WORDS[1]}" in
+                report)
+                    case "${COMP_WORDS[2]}" in
+                        day)
+                            local d=$(date +"%Y-%m-%d")
+                            COMPREPLY=( $(compgen -W "$d" -- $uncomplete))
+                        ;;
+                        week)
+                            local d=$(date +"%Y-%m-%d")
+                            COMPREPLY=( $(compgen -W "$d" -- $uncomplete))
+                        ;;
+                        month)
+                            local d=$(date +"%Y-%m-%d")
+                            COMPREPLY=( $(compgen -W "$d" -- $uncomplete))
+                        ;;
+                    esac
+                    ;;
+                deadline)
+                    case "${COMP_WORDS[2]}" in
+                        set)
+                            local tasklist=$(timer tasklist)
+                            local d=$(date +"%Y-%m-%d")
+                            COMPREPLY=( $(compgen -W "$tasklist $d" -- $uncomplete))
+                        ;;
+                        clear)
+                            local deadlist=$(timer deadlist)
+                            COMPREPLY=( $(compgen -W "$deadlist" -- $uncomplete))
+                        ;;
+                    esac
+                    ;;
+            esac
+            ;;
+        4)
+            # Command argument 3
+            if [ "${COMP_WORDS[1]}" = "deadline" ]
+            then
+                local d=$(date +"%Y-%m-%d")
+                COMPREPLY=( $(compgen -W "$d" -- $uncomplete))
+            fi
+            ;;
+    esac
+}
+
+complete -F _timer timer

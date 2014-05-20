@@ -142,3 +142,9 @@ Commands:
 
 И не забудте сделать симлинк (например) =/usr/local/bin/timer= на =worktimer.scm=.
 
+** Автодополнение для bash
+Автодополнение в bash включается так:
+
+#+begin_src sh
+  $ . bash-completion/timer
+#+end_src
