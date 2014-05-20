@@ -37,7 +37,7 @@
 ;;; PROJECT/TASK/SUBTASK/ETC: [START_TIME] - [STOP_TIME] - DURATION
 
 ;;; Hardcoded timesheet filename
-(define ts-file (string-append (getenv "HOME") "/.timesheet-new"))
+(define ts-file (string-append (getenv "HOME") "/.timesheet"))
 (define date-time-format "~Y-~m-~d ~H:~M:~S")
 (define date-format "~Y-~m-~d")
 
