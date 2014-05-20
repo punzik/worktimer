@@ -216,7 +216,7 @@
     (if (and (not a-stop-time)
              (not b-stop-time))
         #f
-        (if (not a-stop-time) #t
+        (if (not a-stop-time) #f
             (date<? a-start-time b-start-time)))))
 
 ;;; Returns last record of the sheet or #f if sheet is empty.
