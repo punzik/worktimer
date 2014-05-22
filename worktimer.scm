@@ -395,10 +395,10 @@
 
 ;;; Print timesheet
 (define (print-timesheet timesheet deadlines)
-  (when (not (null? deadlines))
+  (unless (null? deadlines)
     (format #t "--- DEADLINES\n")
     (print-deadlines deadlines))
-  (when (not (null? timesheet))
+  (unless (null? timesheet)
     (format #t "--- TIMESHEET\n")
     (print-timerecords timesheet)))
 
@@ -460,7 +460,7 @@
 (define (add-deadlines-to-report! report deadlines)
   (let walk ((tree report)
              (path '()))
-    (when (not (null? tree))
+    (unless (null? tree)
       (let ((deadline (find-by-path deadlines path)))
         (when deadline
           (set-car! (cddr tree) (cadr deadline))))
@@ -474,7 +474,7 @@
 (define (print-report report)
   (let walk ((tree report)
              (level 0))
-    (when (not (null? tree))
+    (unless (null? tree)
       (format #t "~v_~a: ~a~a\n"
               level (car tree)
               (time->string (cadr tree))
