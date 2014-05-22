@@ -689,10 +689,26 @@
           ;; Show running task
           (let ((last (last-task sheet)))
             (if (and last (not (caddr last)))
-                (format #t "~a: ~a\n"
-                        (path->string (car last))
-                        (time->string
-                         (date-difference (current-date) (cadr last))))
+                (let* ((path (car last))
+                       (timer (date-difference (current-date) (cadr last))))
+                  (format #t "~a: ~a ~a\n"
+                          (path->string path)
+                          (time->string timer)
+                          ;; Print deadline
+                          (let ((deadline (find-by-path deadlines path)))
+                            (if (and deadline (cadr deadline))
+                                (let ((deadtime (cadr deadline)))
+                                  (string-append
+                                   "(" (if (or (and (date? deadtime)
+                                                    (date<? (date-round-day deadtime)
+                                                            (date-round-day (current-date))))
+                                               (and (time? deadtime)
+                                                    (time<? deadtime timer)))
+                                           "expired"
+                                           (date/time->string deadtime))
+                                   ")"))
+                                ""))))
+                
                 (format #t "NO TASKS\n")))
 
           ;; Else run command
