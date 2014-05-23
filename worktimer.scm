@@ -354,8 +354,9 @@
                                     (cons item deadlines)
                                     (begin
                                       (format #t "Warning: Line '~a' is not a deadline. Skip.\n" line)
-                                      deadlines))))))))))))))
-      '()))
+                                      deadlines)))))
+                       (else (loop record-type timerecords deadlines)))))))))))
+      (values '() '())))
 
 ;;; Print deadline record
 (define (print-deadline dline)
