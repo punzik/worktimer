@@ -13,7 +13,7 @@ _timer() {
     case "$state" in
         (command)
             # Commands
-            _arguments '1:commands:(start stop report deadline refresh help)'
+            _arguments '1:commands:(start stop report deadline refresh timesheet help)'
             ;;
 
         (arg1)
@@ -22,7 +22,7 @@ _timer() {
                 (start)
                     compadd $(timer tasklist)
                     ;;
-                (report)
+                (report|timesheet)
                     compadd day week month $(timer tasklist)
                     ;;
                 (deadline)
@@ -34,7 +34,7 @@ _timer() {
         (arg2)
             # Command argument 2
             case $words[2] in
-                (report)
+                (report|timesheet)
                     case $words[3] in
                         (day)
                             compadd $(date +"%Y-%m-%d")

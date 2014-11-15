@@ -197,6 +197,12 @@
     (let ((jd (date->julian-day date)))
       (+ jd (- 7 (remainder-and-rest jd 7)))))))
 
+;;; Returns n-th element of list l, or NUL if list is shorter than n
+(define (nth-maybe n l)
+  (if (null? l) '()
+      (if (zero? n) (car l)
+          (nth-maybe (- n 1) (cdr l)))))
+
 ;;; ========================= PROJECT SPECIFIC HELPERS =========================
 
 ;;; Find task or deadline by path
@@ -509,6 +515,60 @@
          (walk l (+ level 2)))
        (cdddr tree)))))
 
+;;; Filter sheet by qualis and range.
+;;; Qualis is string "day", "week", "month" or task name.
+;;; Range is the date string. Both qualis and range may be nil.
+;;;
+;;; Function returns values of filtered sheet and string
+;;; with description of filtering range.
+(define (filter-sheet sheet qualis range)
+  (if (null? qualis)
+      (values sheet '())
+      (let ((date (catch #t
+                    (lambda () (string->date range date-format))
+                    (lambda (key . args) (current-date)))))
+        (let-values (((description filter-lambda)
+                      (cond
+                       ;; Filter records by day
+                       ((string-ci= qualis "day")
+                        (values
+                         (format #f "DAY ~a" (date->string date "~Y-~m-~d"))
+                         (lambda (x) (same-day? date (cadr x)))))
+
+                       ;; Filter records by month
+                       ((string-ci= qualis "month")
+                        (values
+                         (format #f "MONTH ~a" (date->string date "~Y-~m"))
+                         (lambda (x) (same-month? date (cadr x)))))
+
+                       ;; Filter records by week
+                       ((string-ci= qualis "week")
+                        (let ((beg (monday-of-week date))
+                              (end (monday-of-next-week date)))
+                          (values
+                           (format #f "WEEK [~a - ~a)"
+                                   (date->string beg date-format)
+                                   (date->string end date-format))
+                           (lambda (x) (date-in-range? (cadr x) beg end)))))
+
+                       ;; Filter records by path
+                       (else
+                        (values
+                         (format #f "PROJECT ~a" qualis)
+                         (let ((rep-path (path-split qualis)))
+                           (lambda (x)
+                             (let loop ((path (car x))
+                                        (rep-path rep-path))
+                               (if (or
+                                    (null? path)
+                                    (null? rep-path)) #t
+                                    (if (string-ci= (car path) (car rep-path))
+                                        (loop (cdr path) (cdr rep-path))
+                                        #f))))))))))
+          (values 
+           (filter filter-lambda sheet)
+           description)))))
+
 ;;; ================================ COMMANDS ==================================
 
 ;;; Start new task. Returns new sheet with started task or #f if nothing started.
@@ -545,50 +605,18 @@
 ;;; Print report
 (define (cmd-report sheet deadlines . params)
   (format #t "--- REPORT")
-  (let ((sheet
-         (if (null? params) sheet
-             (let* ((interval (car params))
-                    (report-date (catch #t
-                                   (lambda () (string->date (cadr params) date-format))
-                                   (lambda (key . args) (current-date)))))
-               (filter (cond
-                        ;; Filter records by day
-                        ((string-ci= interval "day")
-                         (format #t ". DAY ~a" (date->string report-date "~Y-~m-~d"))
-                         (lambda (x) (same-day? report-date (cadr x))))
+  (let ((qualis (nth-maybe 0 params))
+        (range (nth-maybe 1 params)))
+    (let-values (((sheet description)
+                  (filter-sheet sheet qualis range)))
+      (when (not (null? description))
+        (display ". ")
+        (display description))
+      (newline)
+      (print-report
+       (add-deadlines-to-report!
+        (make-report sheet) deadlines))))
 
-                        ;; Filter records by month
-                        ((string-ci= interval "month")
-                         (format #t ". MONTH ~a" (date->string report-date "~Y-~m"))
-                         (lambda (x) (same-month? report-date (cadr x))))
-
-                        ;; Filter records by week
-                        ((string-ci= interval "week")
-                         (let ((beg (monday-of-week report-date))
-                               (end (monday-of-next-week report-date)))
-                           (format #t ". WEEK [~a - ~a)"
-                                   (date->string beg date-format)
-                                   (date->string end date-format))
-                           (lambda (x) (date-in-range? (cadr x) beg end))))
-
-                        ;; Filter records by path
-                        (else
-                         (format #t ". PROJECT ~a" interval)
-                         (let ((rep-path (path-split interval)))
-                           (lambda (x)
-                             (let loop ((path (car x))
-                                        (rep-path rep-path))
-                               (if (or
-                                    (null? path)
-                                    (null? rep-path)) #t
-                                    (if (string-ci= (car path) (car rep-path))
-                                        (loop (cdr path) (cdr rep-path))
-                                        #f)))))))
-                       sheet)))))
-    (newline)
-    (print-report
-     (add-deadlines-to-report!
-      (make-report sheet) deadlines)))
   (let ((last (last-task sheet)))
     (when last
       (format #t "\n--- ~a TASK\n"
@@ -680,6 +708,20 @@
         (values sheet deadlines)
         (values #f #f))))
 
+;;; Events
+(define (cmd-timesheet sheet deadlines . params)
+  (format #t "--- TIMESHEET")
+  (let ((qualis (nth-maybe 0 params))
+        (range (nth-maybe 1 params)))
+    (let-values (((sheet description)
+                  (filter-sheet sheet qualis range)))
+      (when (not (null? description))
+        (display ". ")
+        (display description))
+      (newline)
+      (print-timerecords sheet)))
+  (values #f #f))
+
 ;;; ================================ MAIN FUNCTION ==================================
 
 (define (main cmdl)
@@ -724,6 +766,8 @@
                     ((string= command "report") cmd-report)
                     ((string= command "refresh") (lambda (s d . p) (values s d)))
                     ((string= command "deadline") cmd-deadline)
+                    ((string= command "timesheet") cmd-timesheet)
+                    ;; Service commands
                     ((string= command "tasklist") cmd-tasklist)
                     ((string= command "deadlist") cmd-deadlist)
                     
@@ -744,6 +788,11 @@
                          (format #t "    deadline clear [TASK]           Remove deadline for project (or for last task)\n")
                          (format #t "    deadline [TASK]                 Show deadline for project\n")
                          (format #t "    deadline all                    Show all deadlines\n")
+                         (format #t "    timesheet                       Show all raw events\n")
+                         (format #t "    timesheet day [DATE]            Show raw events for today or DATE\n")
+                         (format #t "    timesheet week [DATE]           Show raw events for current week or week of DATE\n")
+                         (format #t "    timesheet month [DATE]          Show raw events for current month or month of DATE\n")
+                         (format #t "    timesheet TASK                  Show raw events\n")
                          (format #t "    refresh                         Refresh worksheet file after manual edit\n")
                          (format #t "    (no command)                    Show running task and timer\n\n")
                          (format #t "DATE format: YYYY-mm-dd\n")

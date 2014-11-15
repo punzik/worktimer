@@ -1,5 +1,6 @@
-Программа написана на [Scheme](http://www.schemers.org/) (реализация - [GNU Guile](http://www.gnu.org/software/guile/)) и предназначена для учета
-рабочего времени. Применяется следующим образом:
+Программа написана на [Scheme](http://www.schemers.org/) (реализация -
+[GNU Guile](http://www.gnu.org/software/guile/)) и предназначена для
+учета рабочего времени. Применяется следующим образом:
 
     Usage: timer [command]
     Commands:
@@ -14,6 +15,11 @@
         deadline clear [TASK]           Remove deadline for project (or for last task)
         deadline [TASK]                 Show deadline for project
         deadline all                    Show all deadlines
+        timesheet                       Show all raw events
+        timesheet day [DATE]            Show raw events for today or DATE
+        timesheet week [DATE]           Show raw events for current week or week of DATE
+        timesheet month [DATE]          Show raw events for current month or month of DATE
+        timesheet TASK                  Show raw events
         refresh                         Refresh worksheet file after manual edit
         (no command)                    Show running task and timer
 
@@ -63,10 +69,8 @@
 Команда `report` может иметь параметры:
 
 -   `day [DATE]` - отчет по текущему дню или по дате DATE;
-
 -   `week [DATE]` - отчет по текущей неделе или по неделе, в которую входит день
     DATE;
-
 -   `month [DATE]` - отчет по текущему месяцу или по месяцу, в который входит день
     DATE;
 
@@ -108,6 +112,10 @@
 превышения времени будет установлен. А при отчете за сегодня, до дедлайна
 останется еще 40 минут. Это может быть удобно при планировании времени на
 день/неделю/месяц.
+
+Для того, чтобы посмотреть историю работы, можно воспользоваться командой
+`timesheet`. Эта команда показывает выполнявшиеся задачи в таком виде, в котором
+они сохраняются на диск. Параметры команды такие-же, как у команды `report`.
 
 # Автодополнение для zsh
 

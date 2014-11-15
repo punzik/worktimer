@@ -9,21 +9,26 @@
 рабочего времени. Применяется следующим образом:
 
 #+begin_src text
-Usage: timer [command]
-Commands:
-    start [TASK]                    Start new task. If no task, use last runned task
-    stop                            Stop task
-    report                          Show report
-    report day [DATE]               Show report for today or DATE
-    report week [DATE]              Show report for current week or week of DATE
-    report month [DATE]             Show report for current month or month of DATE
-    report TASK                     Show report for project
-    deadline set [TASK] DATE|TIME   Add deadline for project (or for last task)
-    deadline clear [TASK]           Remove deadline for project (or for last task)
-    deadline [TASK]                 Show deadline for project
-    deadline all                    Show all deadlines
-    refresh                         Refresh worksheet file after manual edit
-    (no command)                    Show running task and timer
+  Usage: timer [command]
+  Commands:
+      start [TASK]                    Start new task. If no task, use last runned task
+      stop                            Stop task
+      report                          Show report
+      report day [DATE]               Show report for today or DATE
+      report week [DATE]              Show report for current week or week of DATE
+      report month [DATE]             Show report for current month or month of DATE
+      report TASK                     Show report for project
+      deadline set [TASK] DATE|TIME   Add deadline for project (or for last task)
+      deadline clear [TASK]           Remove deadline for project (or for last task)
+      deadline [TASK]                 Show deadline for project
+      deadline all                    Show all deadlines
+      timesheet                       Show all raw events
+      timesheet day [DATE]            Show raw events for today or DATE
+      timesheet week [DATE]           Show raw events for current week or week of DATE
+      timesheet month [DATE]          Show raw events for current month or month of DATE
+      timesheet TASK                  Show raw events
+      refresh                         Refresh worksheet file after manual edit
+      (no command)                    Show running task and timer
 #+end_src
 
 Начало работы над задачей:
@@ -129,6 +134,10 @@ Commands:
 превышения времени будет установлен. А при отчете за сегодня, до дедлайна
 останется еще 40 минут. Это может быть удобно при планировании времени на
 день/неделю/месяц.
+
+Для того, чтобы посмотреть историю работы, можно воспользоваться командой
+=timesheet=. Эта команда показывает выполнявшиеся задачи в таком виде, в котором
+они сохраняются на диск. Параметры команды такие-же, как у команды =report=.
 
 ** Автодополнение для zsh
 Для включения автодополнения в zsh скопируйте файл =zsh-completion/_timer= в

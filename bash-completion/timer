@@ -5,7 +5,7 @@ _timer()
     case "$COMP_CWORD" in
         1)
             # Commands
-            COMPREPLY=( $(compgen -W "start stop report deadline refresh help" -- $uncomplete) )
+            COMPREPLY=( $(compgen -W "start stop report deadline refresh timesheet help" -- $uncomplete) )
             ;;
         2)
             # Command argument 1
@@ -14,7 +14,7 @@ _timer()
                     local tasklist=$(timer tasklist)
                     COMPREPLY=( $(compgen -W "$tasklist" -- $uncomplete))
                     ;;
-                report)
+                report|timesheet)
                     local tasklist=$(timer tasklist)
                     COMPREPLY=( $(compgen -W "day week month $tasklist" -- $uncomplete))
                     ;;
@@ -27,7 +27,7 @@ _timer()
         3)
             # Command argument 2
             case "${COMP_WORDS[1]}" in
-                report)
+                report|timesheet)
                     case "${COMP_WORDS[2]}" in
                         day)
                             local d=$(date +"%Y-%m-%d")
