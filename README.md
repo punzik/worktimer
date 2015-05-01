@@ -53,6 +53,8 @@
 
     $ worktimer.scm report
     --- REPORT
+
+[![Join the chat at https://gitter.im/punzik/worktimer](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/punzik/worktimer?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
     Overall: 00:03:45
       uberproject: 00:03:45
         website: 00:03:45
