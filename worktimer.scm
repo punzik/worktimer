@@ -634,6 +634,13 @@
   (format #t "~{~a ~}\n" (record-name-list deadlines))
   (values #f #f))
 
+;;; Print last task
+(define (cmd-lasttask sheet deadlines . unused)
+  (let ((last (last-task sheet)))
+    (when (not (null? last))
+      (format #t "~a\n" (path->string (car last)))))
+  (values #f #f))
+
 ;;; Deadlines
 (define (cmd-deadline sheet deadlines . args)
   (let ((deadlines
@@ -770,6 +777,7 @@
                     ;; Service commands
                     ((string= command "tasklist") cmd-tasklist)
                     ((string= command "deadlist") cmd-deadlist)
+                    ((string= command "lasttask") cmd-lasttask)
                     
                     ;; ----------------------- Show usage ------------------------- ;;
                     (else
