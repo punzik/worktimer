@@ -680,7 +680,7 @@
 (define (cmd-tasklist sheet deadlines archives . unused)
   (format #t "~{~a ~}\n" (record-path-list
                           (not-archived sheet archives)
-                          deadlines))
+                          (not-archived deadlines archives)))
   (values #f #f #f))
 
 ;;; Print deadlines
