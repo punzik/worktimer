@@ -3,23 +3,23 @@
 _timer() {
 
     typeset -A opt_args
-    
+
     _arguments \
         '1: :->command' \
         '2: :->arg1' \
         '3: :->arg2' \
         '4: :->arg3'
-    
+
     case "$state" in
         (command)
             # Commands
-            _arguments '1:commands:(start stop report deadline refresh timesheet help)'
+            _arguments '1:commands:(start stop report deadline archive unarch refresh timesheet help)'
             ;;
 
         (arg1)
             # Command argument 1
             case $words[2] in
-                (start)
+                (start|archive)
                     compadd $(timer tasklist)
                     ;;
                 (report|timesheet)
@@ -28,6 +28,8 @@ _timer() {
                 (deadline)
                     compadd set clear all $(timer deadlist)
                     ;;
+                (unarch)
+                    compadd $(timer archlist)
             esac
             ;;
 
@@ -67,7 +69,7 @@ _timer() {
                 compadd $(date +"%Y-%m-%d")
             fi
             ;;
-    esac  
+    esac
 }
 
 _timer "$@"

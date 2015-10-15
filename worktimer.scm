@@ -44,7 +44,7 @@
 ;;; ========================= COMMON HELPER FUNCTIONS ==========================
 
 ;;; Find substring separated by ch-start and ch-end.
-;;; (substring/find str ch-start ch-end [begin end]) 
+;;; (substring/find str ch-start ch-end [begin end])
 ;;; If ch-start is #f, select substring from beginning of string.
 ;;; If ch-end is #f, select substring from ch-start to end string.
 (define (substring/find str ch-start ch-end . args)
@@ -136,6 +136,16 @@
                 (if (string=? (car a) (car b))
                     (loop (cdr a) (cdr b))
                     (string< (car a) (car b))))))))
+
+;;; Path prefixes with prefix?
+(define (path-prefix? path prefix)
+  (let loop ((path path)
+             (prefix prefix))
+    (if (null? prefix) #t
+        (if (null? path) #f
+            (if (string=? (car path) (car prefix))
+                (loop (cdr path) (cdr prefix))
+                #f)))))
 
 ;;; Compare dates
 (define (date<? a b)
@@ -256,7 +266,7 @@
                 (let fold-path ((path (caar recs))
                                 (spath "")
                                 (tasklist tasklist))
-                  (if (null? path) tasklist 
+                  (if (null? path) tasklist
                       (let ((spath (string-append
                                     spath
                                     (if (zero? (string-length spath)) "" "/")
@@ -272,6 +282,13 @@
     (map (lambda (x) (path->string (car x)))
          (apply append (cons records more)))
     string<?)))
+
+;;; Check the path it belongs to archive
+(define (path-in-archive? path archive)
+  (let loop ((a archive))
+    (if (null? a) #f
+        (if (path-prefix? path (car a)) #t
+            (loop (cdr a))))))
 
 ;;; ========================= PROJECT MAIN FUNCTIONS  ==========================
 
@@ -325,22 +342,27 @@
         (lambda (port)
           (let loop ((record-type 'unknown)
                      (timerecords '())
-                     (deadlines '()))
+                     (deadlines '())
+                     (archives '()))
             (let ((line (get-line port)))
               (if (eof-object? line)
                   (values (remove-dup
                            (sort timerecords timerecord<?))
                           (remove-dup
-                           (sort deadlines deadline<?)))
+                           (sort deadlines deadline<?))
+                          (remove-dup
+                           (sort archives path<?)))
                   (let ((line (string-trim-both line)))
                     (cond
                      ((or (string-null? line)
                           (eq? (string-ref line 0) #\#))
-                      (loop record-type timerecords deadlines))
+                      (loop record-type timerecords deadlines archives))
                      ((string-ci=? line "--- DEADLINES")
-                      (loop 'deadline timerecords deadlines))
+                      (loop 'deadline timerecords deadlines archives))
                      ((string-ci=? line "--- TIMESHEET")
-                      (loop 'timerecord timerecords deadlines))
+                      (loop 'timerecord timerecords deadlines archives))
+                     ((string-ci=? line "--- ARCHIVE")
+                      (loop 'archive timerecords deadlines archives))
                      (else
                       (cond
                        ((eq? record-type 'timerecord)
@@ -351,7 +373,8 @@
                                     (begin
                                       (format #t "Warning: Line '~a' is not a timerecord. Skip.\n" line)
                                       timerecords)))
-                              deadlines))
+                              deadlines
+                              archives))
                        ((eq? record-type 'deadline)
                         (loop record-type
                               timerecords
@@ -360,8 +383,19 @@
                                     (cons item deadlines)
                                     (begin
                                       (format #t "Warning: Line '~a' is not a deadline. Skip.\n" line)
-                                      deadlines)))))
-                       (else (loop record-type timerecords deadlines)))))))))))
+                                      deadlines)))
+                              archives))
+                       ((eq? record-type 'archive)
+                        (loop record-type
+                              timerecords
+                              deadlines
+                              (let ((item (path-split line)))
+                                (if item
+                                    (cons item archives)
+                                    (begin
+                                      (format #t "Warning: Line '~a' is not a archive path. Skip.\n" line)
+                                      archives)))))
+                       (else (loop record-type timerecords deadlines archives)))))))))))
       (values '() '())))
 
 ;;; Print deadline record
@@ -400,11 +434,20 @@
 (define (print-deadlines deadlines)
   (for-each print-deadline (sort deadlines deadline<?)))
 
+;;; Print archives
+(define (print-archives archives)
+  (for-each
+   (lambda (a) (format #t "~a\n" (path->string a)))
+   archives))
+
 ;;; Print timesheet
-(define (print-timesheet timesheet deadlines)
+(define (print-timesheet timesheet deadlines archives)
   (unless (null? deadlines)
     (format #t "--- DEADLINES\n")
     (print-deadlines deadlines))
+  (unless (null? deadlines)
+    (format #t "--- ARCHIVE\n")
+    (print-archives archives))
   (unless (null? timesheet)
     (format #t "--- TIMESHEET\n")
     (print-timerecords timesheet)))
@@ -427,7 +470,7 @@
       (set-car! (cdr tree) (add-duration (cadr tree) duration))
 
       ;; Search next leaf corresponding to path item
-      (if (null? path)
+      (if (or (null? path))
           project-tree
           (let ((item (find
                        (lambda (i) (string= (car i) (car path)))
@@ -449,7 +492,7 @@
                   (set-cdr! (cddr tree) (cons add-items (cdddr tree)))
                   project-tree))))))
   ;; END tree-add-duration!
-  
+
   (let loop ((projects (list "Overall" (make-time 'time-duration 0 0) #f))
              (timesheet timesheet))
     (if (null? timesheet)
@@ -459,8 +502,8 @@
                (start (cadr task))
                (duration (cadddr task)))
           (loop (tree-add-duration! projects path
-                                   (if duration duration
-                                       (date-difference (current-date) start)))
+                                    (if duration duration
+                                        (date-difference (current-date) start)))
                 (cdr timesheet))))))
 
 ;;; Add deadlines to report tree
@@ -509,7 +552,7 @@
 
                  ;; no deadline
                  (else ""))))
-      
+
       (for-each
        (lambda (l)
          (walk l (+ level 2)))
@@ -565,14 +608,21 @@
                                     (if (string-ci= (car path) (car rep-path))
                                         (loop (cdr path) (cdr rep-path))
                                         #f))))))))))
-          (values 
+          (values
            (filter filter-lambda sheet)
            description)))))
+
+;;; Remove archived tasks from sheet
+(define (not-archived sheet archives)
+  (filter (lambda (x)
+            (not (path-in-archive?
+                  (car x)
+                  archives))) sheet))
 
 ;;; ================================ COMMANDS ==================================
 
 ;;; Start new task. Returns new sheet with started task or #f if nothing started.
-(define (cmd-start-task sheet deadlines . params)
+(define (cmd-start-task sheet deadlines archives . params)
   (let* ((last (last-task sheet))
          (path (if (null? params)
                    (if last (car last) #f)
@@ -582,33 +632,35 @@
         (begin (format
                 (current-error-port)
                 "Not specified task path. No tasks in the sheet.\n")
-               (values #f #f))
+               (values #f #f #f))
         (begin
           (stop-task last)
           (let-values (((sheet task) (new-task sheet path)))
             (format #t "--- NEW TASK RUN\n")
             (print-timerecord task)
-            (values sheet deadlines))))))
+            (values sheet deadlines archives))))))
 
 ;;; Stop a running task. Returns new sheet or #f if nothing to stop.
-(define (cmd-stop-task sheet deadlines . params)
+(define (cmd-stop-task sheet deadlines archives . params)
   (let ((last (last-task sheet)))
     (if (stop-task last)
         (begin
           (format #t "--- STOP TASK\n")
           (print-timerecord last)
-          (values sheet deadlines))
+          (values sheet deadlines archives))
         (begin
           (format (current-error-port) "Nothing to stop\n")
-          (values #f #f)))))
+          (values #f #f #f)))))
 
 ;;; Print report
-(define (cmd-report sheet deadlines . params)
+(define (cmd-report sheet deadlines archives . params)
   (format #t "--- REPORT")
   (let ((qualis (nth-maybe 0 params))
         (range (nth-maybe 1 params)))
     (let-values (((sheet description)
-                  (filter-sheet sheet qualis range)))
+                  (filter-sheet
+                   (not-archived sheet archives)
+                   qualis range)))
       (when (not (null? description))
         (display ". ")
         (display description))
@@ -622,27 +674,38 @@
       (format #t "\n--- ~a TASK\n"
               (if (caddr last) "LAST STOPPED" "RUNNING"))
       (print-timerecord last (current-date))))
-  (values #f #f))
+  (values #f #f #f))
 
 ;;; Print all tasks
-(define (cmd-tasklist sheet deadlines . unused)
-  (format #t "~{~a ~}\n" (record-path-list sheet deadlines))
-  (values #f #f))
+(define (cmd-tasklist sheet deadlines archives . unused)
+  (format #t "~{~a ~}\n" (record-path-list
+                          (not-archived sheet archives)
+                          deadlines))
+  (values #f #f #f))
 
 ;;; Print deadlines
-(define (cmd-deadlist sheet deadlines . unused)
+(define (cmd-deadlist sheet deadlines archives . unused)
   (format #t "~{~a ~}\n" (record-name-list deadlines))
-  (values #f #f))
+  (values #f #f #f))
+
+;;; Print archive
+(define (cmd-archlist sheet deadlines archives . unused)
+  (format #t "~{~a ~}\n"
+          (remove-dup
+           (sort
+            (map (lambda (x) (path->string x)) archives)
+            string<?)))
+  (values #f #f #f))
 
 ;;; Print last task
-(define (cmd-lasttask sheet deadlines . unused)
+(define (cmd-lasttask sheet deadlines archives . unused)
   (let ((last (last-task sheet)))
     (when (not (null? last))
       (format #t "~a\n" (path->string (car last)))))
-  (values #f #f))
+  (values #f #f #f))
 
 ;;; Deadlines
-(define (cmd-deadline sheet deadlines . args)
+(define (cmd-deadline sheet deadlines archives . args)
   (let ((deadlines
          (let* ((arg0 (if (null? args) #f (car args)))
                 (arg1 (if (and arg0 (not (null? (cdr args)))) (cadr args) #f))
@@ -692,7 +755,7 @@
             ((equal? arg0 "all")
              (print-deadlines deadlines)
              #f)
-            
+
             ;; Show deadline for task
             (else
              (let ((task (if arg0
@@ -712,28 +775,54 @@
                 deadlines))
              #f)))))
     (if deadlines
-        (values sheet deadlines)
-        (values #f #f))))
+        (values sheet deadlines archives)
+        (values #f #f #f))))
 
 ;;; Events
-(define (cmd-timesheet sheet deadlines . params)
+(define (cmd-timesheet sheet deadlines archives . params)
   (format #t "--- TIMESHEET")
   (let ((qualis (nth-maybe 0 params))
         (range (nth-maybe 1 params)))
     (let-values (((sheet description)
-                  (filter-sheet sheet qualis range)))
+                  (filter-sheet
+                   (not-archived sheet archives)
+                   qualis range)))
       (when (not (null? description))
         (display ". ")
         (display description))
       (newline)
       (print-timerecords sheet)))
-  (values #f #f))
+  (values #f #f #f))
+
+;;; Archive
+(define (cmd-archive sheet deadlines archives . params)
+  (let ((task-str (nth-maybe 0 params)))
+    (if (null? task-str)
+        (begin
+          (format #t "--- ARCHIVE\n")
+          (print-archives archives)
+          (values #f #f #f))
+        (values sheet
+                deadlines
+                (cons (path-split task-str) archives)))))
+
+;;; Unarchive
+(define (cmd-unarch sheet deadlines archives . params)
+  (let ((task-str (nth-maybe 0 params)))
+    (if (null? task-str)
+        (values #f #f #f)
+        (let ((task (path-split task-str)))
+          (values sheet
+                  deadlines
+                  (fold (lambda (p a)
+                          (if (equal? p task) a
+                              (cons p a))) '() archives))))))
 
 ;;; ================================ MAIN FUNCTION ==================================
 
 (define (main cmdl)
   (let ((command (cdr cmdl)))
-    (let-values (((sheet deadlines) (read-timesheet ts-file)))
+    (let-values (((sheet deadlines archives) (read-timesheet ts-file)))
       (if (null? command)
 
           ;; Show running task
@@ -758,27 +847,30 @@
                                            (date/time->string deadtime))
                                    ")"))
                                 ""))))
-                
+
                 (format #t "NO TASKS\n")))
 
           ;; Else run command
           (let ((param (cdr command))
                 (command (car command)))
             (let-values
-                (((sheet' deadlines')
+                (((sheet' deadlines' archives')
                   (apply
                    (cond
                     ((string= command "start") cmd-start-task)
                     ((string= command "stop") cmd-stop-task)
                     ((string= command "report") cmd-report)
-                    ((string= command "refresh") (lambda (s d . p) (values s d)))
+                    ((string= command "refresh") (lambda (s d a . p) (values s d a)))
                     ((string= command "deadline") cmd-deadline)
                     ((string= command "timesheet") cmd-timesheet)
+                    ((string= command "archive") cmd-archive)
+                    ((string= command "unarch") cmd-unarch)
                     ;; Service commands
                     ((string= command "tasklist") cmd-tasklist)
                     ((string= command "deadlist") cmd-deadlist)
+                    ((string= command "archlist") cmd-archlist)
                     ((string= command "lasttask") cmd-lasttask)
-                    
+
                     ;; ----------------------- Show usage ------------------------- ;;
                     (else
                      (with-output-to-port (current-error-port)
@@ -801,21 +893,24 @@
                          (format #t "    timesheet week [DATE]           Show raw events for current week or week of DATE\n")
                          (format #t "    timesheet month [DATE]          Show raw events for current month or month of DATE\n")
                          (format #t "    timesheet TASK                  Show raw events\n")
+                         (format #t "    archive                         Show archive tasks\n")
+                         (format #t "    archive TASK                    Add task to archive\n")
+                         (format #t "    unarch TASK                     Remove task from archive\n")
                          (format #t "    refresh                         Refresh worksheet file after manual edit\n")
                          (format #t "    (no command)                    Show running task and timer\n\n")
                          (format #t "DATE format: YYYY-mm-dd\n")
                          (format #t "TIME format: HH:MM:SS\n")
                          (newline)))
-                     (lambda (s d . p) (values #f #f))))
-                   (cons* sheet deadlines param))))
-              
+                     (lambda (s d a . p) (values #f #f #f))))
+                   (cons* sheet deadlines archives param))))
+
               ;; ----------------------- Save new sheet ------------------------- ;;
               (when (and
                      (list? sheet')
                      (not (null? sheet')))
                 (with-output-to-file ts-file
                   (lambda ()
-                    (print-timesheet sheet' deadlines'))))))))))
+                    (print-timesheet sheet' deadlines' archives'))))))))))
 
 ;;; JUST DO IT!
 (main (command-line))

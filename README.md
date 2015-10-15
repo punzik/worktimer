@@ -20,6 +20,9 @@
         timesheet week [DATE]           Show raw events for current week or week of DATE
         timesheet month [DATE]          Show raw events for current month or month of DATE
         timesheet TASK                  Show raw events
+        archive                         Show archive tasks
+        archive TASK                    Add task to archive
+        unarch TASK                     Remove task from archive
         refresh                         Refresh worksheet file after manual edit
         (no command)                    Show running task and timer
 
@@ -53,13 +56,12 @@
 
     $ worktimer.scm report
     --- REPORT
-
     Overall: 00:03:45
       uberproject: 00:03:45
         website: 00:03:45
           programming: 00:02:34
           design: 00:01:11
-    
+
     --- LAST STOPPED TASK
     uberproject/website/programming: [2014-04-18 09:47:04] - [2014-04-18 09:49:38] - 00:02:34
 
@@ -82,7 +84,7 @@
     Overall: 00:03:45
       uberproject: 00:03:45
         website: 00:03:45
-    
+
     --- LAST STOPPED TASK
     uberproject/website/programming: [2014-04-18 09:47:04] - [2014-04-18 09:49:38] - 00:02:34
 
@@ -118,6 +120,11 @@
 `timesheet`. Эта команда показывает выполнявшиеся задачи в таком виде, в котором
 они сохраняются на диск. Параметры команды такие-же, как у команды `report`.
 
+Задачи (или подзадачи) можно отправлять в архив командой `archive [TASK]`. После этого
+они перестают отображаться в отчете и в списке задач. Посмотреть список
+архивированных задач можно командой `archive` без параметров. Деархивировать
+задачу можно командой `unarch [TASK]`.
+
 # Автодополнение для zsh
 
 Для включения автодополнения в zsh скопируйте файл `zsh-completion/_timer` в
@@ -134,5 +141,3 @@
 Автодополнение в bash включается так:
 
     $ . bash-completion/timer
-
-[![Join the chat at https://gitter.im/punzik/worktimer](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/punzik/worktimer?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
