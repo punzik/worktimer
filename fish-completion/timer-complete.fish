@@ -39,25 +39,32 @@ function __cmd_contains_only
     return 0
 end
 
+# Dynamically update completion
 function __cmd_empty
     test (count (commandline -cpo)) -eq 1
 end
 
-set -l __tasklist (timer tasklist)
-set -l __lasttask (timer lasttask)
-set -l __deadlist (timer deadlist)
-set -l __archlist (timer archlist)
+function __timer_tasklist
+    string split " " (timer tasklist)
+end
+
+function __timer_deadlist
+    string split " " (timer deadlist)
+end
+
+function __timer_archlist
+    string split " " (timer archlist)
+end
 
 # do not use files for complete timer
 complete -c timer --no-files
 
 # start
 complete -c timer -n "__cmd_empty" -a start -d "Start new task"
-complete -c timer -n "__cmd_contains start" -a $__tasklist
+complete -c timer -n "__cmd_contains start" -a '(__timer_tasklist)'
 
 # stop
 complete -c timer -n "__cmd_empty" -a stop -d "Stop task"
-complete -c timer -n "__cmd_contains stop" -a $__lasttask
 
 # report
 complete -c timer -n "__cmd_empty" -a report -d "Show report"
@@ -66,24 +73,24 @@ complete -c timer -n "__cmd_contains report; and __cmd_contains day week month" 
 
 #deadline
 complete -c timer -n "__cmd_empty" -a deadline -d "Show report"
-complete -c timer -n "__cmd_contains_only deadline" -a $__tasklist
+complete -c timer -n "__cmd_contains_only deadline" -a '(__timer_tasklist)'
 complete -c timer -n "__cmd_contains_only deadline" -a "set clear all"
-complete -c timer -n "__cmd_contains deadline; and __cmd_contains set" -a "$__tasklist (date +'%Y-%m-%d') (date +'%H:%M:%S')"
-complete -c timer -n "__cmd_contains deadline; and __cmd_contains clear" -a $__deadlist
+complete -c timer -n "__cmd_contains deadline; and __cmd_contains set" -a "'(__timer_tasklist)' (date +'%Y-%m-%d') (date +'%H:%M:%S')"
+complete -c timer -n "__cmd_contains deadline; and __cmd_contains clear" -a '(__timer_deadlist)'
 
 #timesheet
 complete -c timer -n "__cmd_empty" -a timesheet -d "Show all raw events"
-complete -c timer -n "__cmd_contains_only timesheet" -a $__tasklist
+complete -c timer -n "__cmd_contains_only timesheet" -a '(__timer_tasklist)'
 complete -c timer -n "__cmd_contains_only timesheet" -a "day week month"
 complete -c timer -n "__cmd_contains timesheet; and __cmd_contains day week month" -a (date +'%Y-%m-%d')
 
 #archive
 complete -c timer -n "__cmd_empty" -a archive -d "Show/add archive tasks"
-complete -c timer -n "__cmd_contains archive" -a $__tasklist
+complete -c timer -n "__cmd_contains archive" -a '(__timer_tasklist)'
 
 #unarch
 complete -c timer -n "__cmd_empty" -a unarch -d "Remove task from archive"
-complete -c timer -n "__cmd_contains unarch" -a $__archlist
+complete -c timer -n "__cmd_contains unarch" -a '(__timer_archlist)'
 
 #refresh
 complete -c timer -n "__cmd_empty" -a refresh -d "Refresh worksheet file"
