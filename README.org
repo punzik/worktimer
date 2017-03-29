@@ -149,7 +149,7 @@
 
 ** Автодополнение для zsh
 Для включения автодополнения в zsh скопируйте файл =zsh-completion/_timer= в
-=~/.zsh-completion/=, и добавте в файл =~/.zshrc= строки
+=~/.zsh-completion/=, и добавьте в файл =~/.zshrc= строки
 
 #+begin_src sh
   fpath=(~/.zsh-completions $fpath)
@@ -164,4 +164,17 @@
 
 #+begin_src sh
   $ . bash-completion/timer
+#+end_src
+
+** Автодополнение для fish
+Скопируйте файл =fish-completion/timer-complete.fish= в папку с конфигом (обычно
+это =~/.config/fish=, и дообавьте следующий код в конфигурационный файл:
+
+#+begin_src sh
+  set -l configdir ~/.config
+  if set -q XDG_CONFIG_HOME
+      set configdir $XDG_CONFIG_HOME
+  end
+
+  source $configdir/fish/timer-complete.fish
 #+end_src

@@ -1,6 +1,5 @@
-Программа написана на [Scheme](http://www.schemers.org/) (реализация -
-[GNU Guile](http://www.gnu.org/software/guile/)) и предназначена для
-учета рабочего времени. Применяется следующим образом:
+Программа написана на [Scheme](http://www.schemers.org/) (реализация - [GNU Guile](http://www.gnu.org/software/guile/)) и предназначена для учета
+рабочего времени. Применяется следующим образом:
 
     Usage: timer [command]
     Commands:
@@ -125,10 +124,11 @@
 архивированных задач можно командой `archive` без параметров. Деархивировать
 задачу можно командой `unarch [TASK]`.
 
+
 # Автодополнение для zsh
 
 Для включения автодополнения в zsh скопируйте файл `zsh-completion/_timer` в
-`~/.zsh-completion/`, и добавте в файл `~/.zshrc` строки
+`~/.zsh-completion/`, и добавьте в файл `~/.zshrc` строки
 
     fpath=(~/.zsh-completions $fpath)
     autoload -Uz compinit
@@ -136,8 +136,22 @@
 
 И не забудте сделать симлинк (например) `/usr/local/bin/timer` на `worktimer.scm`.
 
+
 # Автодополнение для bash
 
 Автодополнение в bash включается так:
 
     $ . bash-completion/timer
+
+
+# Автодополнение для fish
+
+Скопируйте файл `fish-completion/timer-complete.fish` в папку с конфигом (обычно
+это `~/.config/fish`, и дообавьте следующий код в конфигурационный файл:
+
+    set -l configdir ~/.config
+    if set -q XDG_CONFIG_HOME
+        set configdir $XDG_CONFIG_HOME
+    end
+
+    source $configdir/fish/timer-complete.fish
