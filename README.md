@@ -5,6 +5,7 @@
     Commands:
         start [TASK]                    Start new task. If no task, use last runned task
         stop                            Stop task
+        current                         Show current running task
         report                          Show report
         report day [DATE]               Show report for today or DATE
         report week [DATE]              Show report for current week or week of DATE
@@ -88,7 +89,7 @@
     uberproject/website/programming: [2014-04-18 09:47:04] - [2014-04-18 09:49:38] - 00:02:34
 
 При запуске программы без аргументов выводится имя текущей задачи и текущий
-таймер:
+таймер или название последней задачи, если таймер не запущен:
 
     $ worktimer.scm
     uberproject/website/programming: 00:02:51

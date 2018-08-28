@@ -240,6 +240,11 @@
   (let ((last (last-pair sheet)))
     (if (null? last) #f (car last))))
 
+;;; Returns running record
+(define (running sheet)
+  (let ((last (last-task sheet)))
+    (if (and last (not (caddr last))) last #f)))
+
 ;;; Stop task. Returns #t if stopped, #f if no running task.
 (define (stop-task task)
   (if (not (caddr task))
@@ -818,37 +823,45 @@
                           (if (equal? p task) a
                               (cons p a))) '() archives))))))
 
+;;; Show current running task
+(define (cmd-current sheet deadlines archives . params)
+  (let ((runrec (running sheet)))
+    (if runrec
+        (let* ((path (car runrec))
+               (timer (date-difference (current-date) (cadr runrec))))
+          (format #t "~a: ~a ~a\n"
+                  (path->string path)
+                  (time->string timer)
+                  ;; Print deadline
+                  (let ((deadline (find-by-path deadlines path)))
+                    (if (and deadline (cadr deadline))
+                        (let ((deadtime (cadr deadline)))
+                          (string-append
+                           "(" (if (or (and (date? deadtime)
+                                            (date<? (date-round-day deadtime)
+                                                    (date-round-day (current-date))))
+                                       (and (time? deadtime)
+                                            (time<? deadtime timer)))
+                                   "expired"
+                                   (date/time->string deadtime))
+                           ")"))
+                        ""))))
+        (begin
+          (format #t "NO TASKS\n"))))
+  (values #f #f #f))
+
 ;;; ================================ MAIN FUNCTION ==================================
 
 (define (main cmdl)
   (let ((command (cdr cmdl)))
     (let-values (((sheet deadlines archives) (read-timesheet ts-file)))
       (if (null? command)
-
-          ;; Show running task
-          (let ((last (last-task sheet)))
-            (if (and last (not (caddr last)))
-                (let* ((path (car last))
-                       (timer (date-difference (current-date) (cadr last))))
-                  (format #t "~a: ~a ~a\n"
-                          (path->string path)
-                          (time->string timer)
-                          ;; Print deadline
-                          (let ((deadline (find-by-path deadlines path)))
-                            (if (and deadline (cadr deadline))
-                                (let ((deadtime (cadr deadline)))
-                                  (string-append
-                                   "(" (if (or (and (date? deadtime)
-                                                    (date<? (date-round-day deadtime)
-                                                            (date-round-day (current-date))))
-                                               (and (time? deadtime)
-                                                    (time<? deadtime timer)))
-                                           "expired"
-                                           (date/time->string deadtime))
-                                   ")"))
-                                ""))))
-
-                (format #t "NO TASKS\n")))
+          (begin
+            (cmd-current sheet deadlines archives)
+            (if (not (running sheet))
+                (begin
+                  (display "Last task: ")
+                  (cmd-lasttask sheet deadlines archives))))
 
           ;; Else run command
           (let ((param (cdr command))
@@ -865,6 +878,7 @@
                     ((string= command "timesheet") cmd-timesheet)
                     ((string= command "archive") cmd-archive)
                     ((string= command "unarch") cmd-unarch)
+                    ((string= command "current") cmd-current)
                     ;; Service commands
                     ((string= command "tasklist") cmd-tasklist)
                     ((string= command "deadlist") cmd-deadlist)
@@ -879,6 +893,7 @@
                          (format #t "Commands:\n")
                          (format #t "    start [TASK]                    Start new task. If no task, use last runned task\n")
                          (format #t "    stop                            Stop task\n")
+                         (format #t "    current                         Show current running task\n")
                          (format #t "    report                          Show report\n")
                          (format #t "    report day [DATE]               Show report for today or DATE\n")
                          (format #t "    report week [DATE]              Show report for current week or week of DATE\n")
