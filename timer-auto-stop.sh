@@ -2,7 +2,7 @@
 
 timer_is_start()
 {
-    if [ "$(timer)" = "NO TASKS" ]; then
+    if [ "$(timer current)" = "NO TASKS" ]; then
         echo "off"
     else
         echo "on"
@@ -12,7 +12,7 @@ timer_is_start()
 screen_status()
 {
     local xset_status=$(xset q | grep "Monitor is")
-    
+
     if [ "$xset_status" = "  Monitor is On" ]; then
         echo "on"
     elif [ "$xset_status" = "  Monitor is Off" ]; then
@@ -46,6 +46,6 @@ do
     fi
 
     scr_status=$scr
-    
+
     sleep 5
 done
