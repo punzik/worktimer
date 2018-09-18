@@ -213,6 +213,12 @@
       (if (zero? n) (car l)
           (nth-maybe (- n 1) (cdr l)))))
 
+;;; Add time duration to date
+(define (date-add-duration date duration)
+  (time-monotonic->date
+   (add-duration
+    (date->time-monotonic date) duration)))
+
 ;;; ========================= PROJECT SPECIFIC HELPERS =========================
 
 ;;; Find task or deadline by path
@@ -574,7 +580,14 @@
       (values sheet '())
       (let ((date (catch #t
                     (lambda () (string->date range date-format))
-                    (lambda (key . args) (current-date)))))
+                    (lambda (key . args)
+                      (let ((n (if (null? range) #f (string->number range))))
+                        (if (and n (string-ci= qualis "day"))
+                            (date-add-duration
+                             (current-date)
+                             (make-time time-duration 0
+                                        (* n 24 60 60)))
+                            (current-date)))))))
         (let-values (((description filter-lambda)
                       (cond
                        ;; Filter records by day
@@ -895,7 +908,7 @@
                          (format #t "    stop                            Stop task\n")
                          (format #t "    current                         Show current running task\n")
                          (format #t "    report                          Show report\n")
-                         (format #t "    report day [DATE]               Show report for today or DATE\n")
+                         (format #t "    report day [DATE/DELTA]         Show report for today or DATE or DELTA days ago (e.g. -1)\n")
                          (format #t "    report week [DATE]              Show report for current week or week of DATE\n")
                          (format #t "    report month [DATE]             Show report for current month or month of DATE\n")
                          (format #t "    report TASK                     Show report for project\n")

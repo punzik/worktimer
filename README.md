@@ -7,7 +7,7 @@
         stop                            Stop task
         current                         Show current running task
         report                          Show report
-        report day [DATE]               Show report for today or DATE
+        report day [DATE/DELTA]         Show report for today or DATE or DELTA days ago (e.g. -1)
         report week [DATE]              Show report for current week or week of DATE
         report month [DATE]             Show report for current month or month of DATE
         report TASK                     Show report for project
@@ -71,7 +71,7 @@
 
 Команда `report` может иметь параметры:
 
--   `day [DATE]` - отчет по текущему дню или по дате DATE;
+-   `day [DATE/DELTA]` - отчет по текущему дню, по дате DATE или по дню + DELTA (например, вчера - это -1);
 -   `week [DATE]` - отчет по текущей неделе или по неделе, в которую входит день
     DATE;
 -   `month [DATE]` - отчет по текущему месяцу или по месяцу, в который входит день
