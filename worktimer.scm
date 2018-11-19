@@ -935,6 +935,8 @@
               (when (and
                      (list? sheet')
                      (not (null? sheet')))
+                (when (access? ts-file W_OK)
+                  (copy-file ts-file (string-append ts-file ".bak")))
                 (with-output-to-file ts-file
                   (lambda ()
                     (print-timesheet sheet' deadlines' archives'))))))))))
