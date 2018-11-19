@@ -718,8 +718,7 @@
 ;;; Print last task
 (define (cmd-lasttask sheet deadlines archives . unused)
   (let ((last (last-task sheet)))
-    (when (not (null? last))
-      (format #t "~a\n" (path->string (car last)))))
+    (format #t "~a\n" (if last (path->string (car last)) "")))
   (values #f #f #f))
 
 ;;; Deadlines
