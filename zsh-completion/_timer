@@ -13,13 +13,13 @@ _timer() {
     case "$state" in
         (command)
             # Commands
-            _arguments '1:commands:(start stop report deadline archive unarch refresh timesheet help)'
+            _arguments '1:commands:(start stop report stats deadline archive unarch refresh timesheet help)'
             ;;
 
         (arg1)
             # Command argument 1
             case $words[2] in
-                (start|archive)
+                (start|archive|stats)
                     compadd $(timer tasklist)
                     ;;
                 (report|timesheet)

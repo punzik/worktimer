@@ -95,5 +95,9 @@ complete -c timer -n "__cmd_contains unarch" -a '(__timer_archlist)'
 #refresh
 complete -c timer -n "__cmd_empty" -a refresh -d "Refresh worksheet file"
 
+# stats
+complete -c timer -n "__cmd_empty" -a stats -d "Show statistics"
+complete -c timer -n "__cmd_contains stats" -a '(__timer_tasklist)'
+
 #help
 complete -c timer -n "__cmd_empty" -a help -d "Help"

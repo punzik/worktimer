@@ -25,7 +25,8 @@
 (import (rnrs io ports (6))
         (srfi srfi-1)
         (srfi srfi-19)
-        (srfi srfi-11))
+        (srfi srfi-11)
+        (srfi srfi-43))
 
 ;;; Set locale according to environment settings
 (setlocale LC_ALL "")
@@ -158,6 +159,12 @@
   (time-difference
    (date->time-utc d1)
    (date->time-utc d2)))
+
+;;; Test dates for equality
+(define (date= a b)
+  (and (= (date-year a) (date-year b))
+       (= (date-month a) (date-month b))
+       (= (date-day a) (date-day b))))
 
 ;;; Dates is in same day?
 (define (same-month? d1 d2)
@@ -862,6 +869,75 @@
           (format #t "NO TASKS\n"))))
   (values #f #f #f))
 
+;; stat is a list of lists: ((<index> <count-of-adds> <duration>)...)
+(define (stat-add-duration stat idx duration idx-equality)
+  (define (idx-eq item) (idx-equality (car item) idx))
+  (if (any idx-eq stat)
+      (map (lambda (i) (if (idx-eq i)
+                      (list idx
+                            (+ (cadr i) 1)
+                            (add-duration (caddr i) duration))
+                      i)) stat)
+      (cons (list idx 1 duration) stat)))
+
+(define week-day-names
+  '((0 (7 "SUNDAY" "SUN"))
+    (1 (1 "MONDAY" "MON"))
+    (2 (2 "TUESDAY" "TUE"))
+    (3 (3 "WEDNESDAY" "WED"))
+    (4 (4 "THURSDAY" "THU"))
+    (5 (5 "FRIDAY" "FRI"))
+    (6 (6 "SATURDAY" "SAT"))))
+
+;;; Show statistics
+(define (cmd-stats sheet deadlines archives . params)
+  (let* ((task-str (nth-maybe 0 params))
+         (req-path (if (null? task-str) #f (path-split task-str))))
+
+    ;; Make list with (by-date by-path) duration
+    (let ((by-date
+           (fold (lambda (rec by-date-stat)
+                   (let ((path (car rec))
+                         (start (cadr rec))
+                         (dur (cadddr rec)))
+                     (stat-add-duration by-date-stat (list path start) dur
+                                        (lambda (i1 i2)
+                                          (and (equal? (car i1) (car i2))
+                                               (date= (cadr i1) (cadr i2)))))))
+                 '() sheet)))
+
+      ;; Make statistics by day of the week
+      (let ((by-day
+             (fold (lambda (rec by-day-stat)
+                     (let ((path (caar rec))
+                           (start (cadar rec))
+                           (dur (caddr rec)))
+                       (if (or (not req-path)
+                               (path-prefix? path req-path))
+                           (stat-add-duration by-day-stat (date-week-day start) dur =)
+                           by-day-stat)))
+                   '() by-date)))
+
+        ;; Print
+        (format #t "-- STATISTICS\n")
+        (when (not (null? by-day))
+          (format #t "By day-of-week statistics for ~a:\n" (if req-path (path->string req-path) "all projects"))
+          (for-each (lambda (r)
+                      (let ((day-name (cadr (assq (car r) week-day-names))))
+                        (format #t "  ~a ~a: ~a\n"
+                                (car day-name)
+                                (caddr day-name)
+                                (time->string (make-time 'time-duration 0
+                                                         (round
+                                                          (/ (time-second (caddr r)) (cadr r))))))))
+                    (sort by-day (lambda (a b)
+                                   ;; Set MONDAY as first day of week
+                                   (cond
+                                    ((= (car a) 0) #f)
+                                    ((= (car b) 0) #t)
+                                    (else (< (car a) (car b)))))))))))
+  (values #f #f #f))
+
 ;;; ================================ MAIN FUNCTION ==================================
 
 (define (main cmdl)
@@ -891,6 +967,7 @@
                     ((string= command "archive") cmd-archive)
                     ((string= command "unarch") cmd-unarch)
                     ((string= command "current") cmd-current)
+                    ((string= command "stats") cmd-stats)
                     ;; Service commands
                     ((string= command "tasklist") cmd-tasklist)
                     ((string= command "deadlist") cmd-deadlist)
@@ -924,6 +1001,7 @@
                          (format #t "    archive TASK                    Add task to archive\n")
                          (format #t "    unarch TASK                     Remove task from archive\n")
                          (format #t "    refresh                         Refresh worksheet file after manual edit\n")
+                         (format #t "    stats                           Show statistics\n")
                          (format #t "    (no command)                    Show running task and timer\n\n")
                          (format #t "DATE format: YYYY-mm-dd\n")
                          (format #t "TIME format: HH:MM:SS\n")

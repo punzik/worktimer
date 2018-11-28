@@ -5,12 +5,12 @@ _timer()
     case "$COMP_CWORD" in
         1)
             # Commands
-            COMPREPLY=( $(compgen -W "start stop report deadline archive unarch refresh timesheet help" -- $uncomplete) )
+            COMPREPLY=( $(compgen -W "start stop report stats deadline archive unarch refresh timesheet help" -- $uncomplete) )
             ;;
         2)
             # Command argument 1
             case "${COMP_WORDS[1]}" in
-                start|archive)
+                start|archive|stats)
                     local tasklist=$(timer tasklist)
                     COMPREPLY=( $(compgen -W "$tasklist" -- $uncomplete))
                     ;;
