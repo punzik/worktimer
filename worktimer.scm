@@ -414,7 +414,7 @@
                                       (format #t "Warning: Line '~a' is not a archive path. Skip.\n" line)
                                       archives)))))
                        (else (loop record-type timerecords deadlines archives)))))))))))
-      (values '() '())))
+      (values '() '() '())))
 
 ;;; Print deadline record
 (define (print-deadline dline)
