@@ -659,7 +659,7 @@
                 "Not specified task path. No tasks in the sheet.\n")
                (values #f #f #f))
         (begin
-          (stop-task last)
+          (when last (stop-task last))
           (let-values (((sheet task) (new-task sheet path)))
             (format #t "--- NEW TASK RUN\n")
             (print-timerecord task)
@@ -668,7 +668,7 @@
 ;;; Stop a running task. Returns new sheet or #f if nothing to stop.
 (define (cmd-stop-task sheet deadlines archives . params)
   (let ((last (last-task sheet)))
-    (if (stop-task last)
+    (if (and last (stop-task last))
         (begin
           (format #t "--- STOP TASK\n")
           (print-timerecord last)
@@ -761,7 +761,7 @@
               (lambda (break-del)
                 (let ((task (if arg1
                                 (path-split arg1)
-                                (if (null? last)
+                                (if (not last)
                                     (begin (format #t "Not specified task path.\n") (break-del #f))
                                     (car last)))))
                   (fold-right
@@ -784,7 +784,7 @@
             (else
              (let ((task (if arg0
                              (path-split arg0)
-                             (if (null? last)
+                             (if (not last)
                                  (begin (format #t "--- ALL DEADLINES\n") `())
                                  (car last)))))
                (for-each
