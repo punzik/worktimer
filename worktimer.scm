@@ -463,7 +463,7 @@
   (unless (null? deadlines)
     (format #t "--- DEADLINES\n")
     (print-deadlines deadlines))
-  (unless (null? deadlines)
+  (unless (null? archives)
     (format #t "--- ARCHIVE\n")
     (print-archives archives))
   (unless (null? timesheet)
