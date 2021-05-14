@@ -1,5 +1,8 @@
 #!/bin/bash
 
+timer_prog="timer"
+xset_prog="xset"
+
 timer_is_start()
 {
     if [ "$(timer current)" = "NO TASKS" ]; then
@@ -11,14 +14,12 @@ timer_is_start()
 
 screen_status()
 {
-    local xset_status=$(xset q | grep "Monitor is")
+    local xset_status=$($xset_prog q | grep "Monitor is On")
 
-    if [ "$xset_status" = "  Monitor is On" ]; then
-        echo "on"
-    elif [ "$xset_status" = "  Monitor is Off" ]; then
+    if [ -z "$xset_status" ]; then
         echo "off"
     else
-        echo "unknown"
+        echo "on"
     fi
 }
 
@@ -33,13 +34,13 @@ do
         case $scr in
             on)
                 if [ $timer_on = "on" ]; then
-                    timer start
+                    $timer_prog start
                 fi
             ;;
             off)
                 timer_on=$(timer_is_start)
                 if [ $timer_on = "on" ]; then
-                    timer stop
+                    $timer_prog stop
                 fi
             ;;
         esac
