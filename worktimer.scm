@@ -708,6 +708,20 @@
                           (not-archived deadlines archives)))
   (values #f #f #f))
 
+;;; Print dmenu items
+(define (cmd-dmenu sheet deadlines archives . unused)
+  (let ((runrec (running sheet)))
+    (if runrec
+        (format #t "-- STOP ~a\n" (path->string (car runrec)))
+        (let ((last (last-task sheet)))
+          (when last
+            (format #t "-- START ~a\n" (path->string (car last)))))))
+
+  (format #t "~{~a\n~}" (record-path-list
+                          (not-archived sheet archives)
+                          (not-archived deadlines archives)))
+  (values #f #f #f))
+
 ;;; Print deadlines
 (define (cmd-deadlist sheet deadlines archives . unused)
   (format #t "~{~a ~}\n" (record-name-list deadlines))
@@ -973,6 +987,7 @@
                     ((string= command "deadlist") cmd-deadlist)
                     ((string= command "archlist") cmd-archlist)
                     ((string= command "lasttask") cmd-lasttask)
+                    ((string= command "dmenu") cmd-dmenu)
 
                     ;; ----------------------- Show usage ------------------------- ;;
                     (else
