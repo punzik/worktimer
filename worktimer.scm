@@ -274,24 +274,47 @@
     (values (append sheet (list task)) task)))
 
 ;;; Returns unique path names of record lists
-(define (record-path-list records . more)
-  (remove-dup
+(define (record-path-list sort-type records . more)
+  (map
+   car
    (sort
-    (let loop ((recs (apply append (cons records more)))
-               (tasklist '()))
-      (if (null? recs) tasklist
-          (loop (cdr recs)
-                (let fold-path ((path (caar recs))
-                                (spath "")
-                                (tasklist tasklist))
-                  (if (null? path) tasklist
-                      (let ((spath (string-append
-                                    spath
-                                    (if (zero? (string-length spath)) "" "/")
-                                    (car path))))
-                        (fold-path (cdr path) spath
-                                   (cons spath tasklist))))))))
-    string<?)))
+    (remove-dup
+     (sort
+      (let loop ((recs (apply append (cons records more)))
+                 (tasklist '()))
+        (if (null? recs) tasklist
+            (loop (cdr recs)
+                  (let* ((task (car recs))
+                         (sdate (cadr task))
+                         (edate (caddr task)))
+                    (append
+                     tasklist
+                     (map (lambda (t) `(,t ,sdate ,edate))
+                          (let fold-path ((path (car task))
+                                          (spath "")
+                                          (newtasks '()))
+                            (if (null? path) newtasks
+                                (let ((spath (string-append
+                                              spath
+                                              (if (zero? (string-length spath)) "" "/")
+                                              (car path))))
+                                  (fold-path (cdr path) spath
+                                             (cons spath newtasks)))))))))))
+      (lambda (a b) (string<? (car a) (car b))))
+     (lambda (a b) (equal? (car a) (car b))))
+    (cond
+     ((eq? sort-type 'by-date)
+      (lambda (a b)
+        (let ((a-sdate (cadr a))
+              (b-sdate (cadr b))
+              (a-edate (caddr a))
+              (b-edate (caddr b)))
+          (if (and a-edate b-edate)
+              (date<? b-edate a-edate)
+              (date<? b-sdate a-sdate)))))
+
+     (else
+      (lambda (a b) (string<? (car a) (car b))))))))
 
 ;;; Returns unique task names
 (define (record-name-list records . more)
@@ -704,12 +727,13 @@
 ;;; Print all tasks
 (define (cmd-tasklist sheet deadlines archives . unused)
   (format #t "~{~a ~}\n" (record-path-list
+                          'by-name
                           (not-archived sheet archives)
                           (not-archived deadlines archives)))
   (values #f #f #f))
 
 ;;; Print dmenu items
-(define (cmd-dmenu sheet deadlines archives . unused)
+(define (cmd-dmenu sheet deadlines archives . params)
   (let ((runrec (running sheet)))
     (if runrec
         (format #t "-- STOP ~a\n" (path->string (car runrec)))
@@ -718,8 +742,12 @@
             (format #t "-- START ~a\n" (path->string (car last)))))))
 
   (format #t "~{~a\n~}" (record-path-list
-                          (not-archived sheet archives)
-                          (not-archived deadlines archives)))
+                         (if (and (not (null? params))
+                                  (string-ci= (car params) "by-date"))
+                             'by-date
+                             'by-name)
+                         (not-archived sheet archives)
+                         (not-archived deadlines archives)))
   (values #f #f #f))
 
 ;;; Print deadlines
