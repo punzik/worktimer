@@ -60,11 +60,11 @@
                   (loop (cons (substring str (1+ cs) ce) strings) (1+ ce)))))))))
 
 ;;; Remove duplicates in list
-(define (remove-dup list)
+(define* (remove-dup list #:optional (equal-pred equal?))
   (reverse
    (fold (lambda (x l)
            (if (or (null? l)
-                   (not (equal? (car l) x)))
+                   (not (equal-pred (car l) x)))
                (cons x l) l))
          '() list)))
 
