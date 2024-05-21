@@ -1,4 +1,4 @@
-#!/usr/bin/guile
+#!/usr/bin/env guile
 !#
 
 ;; Copyright (c) 2014 Nikolay Puzanov <punzik@gmail.com>
