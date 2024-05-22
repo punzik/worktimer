@@ -275,46 +275,58 @@
 
 ;;; Returns unique path names of record lists
 (define (record-path-list sort-type records . more)
-  (map
-   car
-   (sort
-    (remove-dup
-     (sort
-      (let loop ((recs (apply append (cons records more)))
-                 (tasklist '()))
-        (if (null? recs) tasklist
-            (loop (cdr recs)
-                  (let* ((task (car recs))
-                         (sdate (cadr task))
-                         (edate (caddr task)))
-                    (append
-                     tasklist
-                     (map (lambda (t) `(,t ,sdate ,edate))
-                          (let fold-path ((path (car task))
-                                          (spath "")
-                                          (newtasks '()))
-                            (if (null? path) newtasks
-                                (let ((spath (string-append
-                                              spath
-                                              (if (zero? (string-length spath)) "" "/")
-                                              (car path))))
-                                  (fold-path (cdr path) spath
-                                             (cons spath newtasks)))))))))))
-      (lambda (a b) (string<? (car a) (car b))))
-     (lambda (a b) (equal? (car a) (car b))))
-    (cond
-     ((eq? sort-type 'by-date)
-      (lambda (a b)
-        (let ((a-sdate (cadr a))
-              (b-sdate (cadr b))
-              (a-edate (caddr a))
-              (b-edate (caddr b)))
-          (if (and a-edate b-edate)
-              (date<? b-edate a-edate)
-              (date<? b-sdate a-sdate)))))
+  (let* (;; Make list of paths + dates
+         (path+date-list
+          (fold
+           (lambda (task out)
+             (let ((sdate (second task))
+                   (edate (third task)))
+               (append
+                out
+                (map (lambda (path) `(,path ,sdate ,edate))
+                     (fold
+                      (lambda (path paths)
+                        (if (null? paths)
+                            `(,path)
+                            (cons (string-append (car paths) "/" path)
+                                  paths)))
+                      '() (first task))))))
+           '()
+           (apply append (cons records more))))
 
-     (else
-      (lambda (a b) (string<? (car a) (car b))))))))
+         ;; Remove duplicates. Keep newest records
+         (path+date-list
+          (fold
+           (lambda (path+date out)
+             (if (null? out)
+                 `(,path+date)
+                 (let ((old-path (caar out))
+                       (old-date (or (caddar out) (cadar out)))
+                       (new-path (car path+date))
+                       (new-date (or (caddr path+date) (cadr path+date))))
+                   (if (string= old-path new-path)
+                       (if (date<? old-date new-date)
+                           (cons path+date (cdr out))
+                           out)
+                       (cons path+date out)))))
+           '()
+           (sort path+date-list
+                 (lambda (a b) (string<? (car a) (car b))))))
+
+         ;; Sort
+         (path+date-list
+          (sort path+date-list
+                (cond
+                 ((eq? sort-type 'by-date)
+                  (lambda (a b)
+                    (let ((a-date (or (caddr a) (cadr a)))
+                          (b-date (or (caddr b) (cadr b))))
+                      (date<? b-date a-date))))
+
+                 (else
+                  (lambda (a b) (string<? (car a) (car b))))))))
+
+    (map car path+date-list)))
 
 ;;; Returns unique task names
 (define (record-name-list records . more)
@@ -916,10 +928,10 @@
   (define (idx-eq item) (idx-equality (car item) idx))
   (if (any idx-eq stat)
       (map (lambda (i) (if (idx-eq i)
-                      (list idx
-                            (+ (cadr i) 1)
-                            (add-duration (caddr i) duration))
-                      i)) stat)
+                           (list idx
+                                 (+ (cadr i) 1)
+                                 (add-duration (caddr i) duration))
+                           i)) stat)
       (cons (list idx 1 duration) stat)))
 
 (define week-day-names
